@@ -1,0 +1,8 @@
+.vscode/
+.venv/
+.ruff_cache/
+__pycache__/
+.env
+app/api/v2/
+app/api/v3/
+CLAUDE.md

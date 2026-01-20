@@ -4,7 +4,7 @@
 
 ## 요구사항
 
-- Python 3.11
+- Python 3.11.x
 - Docker (배포 시)
 
 ## 로컬 실행
@@ -31,6 +31,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ## API 엔드포인트
 
+- `GET /` - 헬스체크
 - `GET /api/v1/health` - 헬스체크
 - `POST /api/v1/recommend` - 추천 요청
 

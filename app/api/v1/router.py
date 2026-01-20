@@ -1,6 +1,7 @@
 # v1 API Routers
 
 from fastapi import APIRouter
+
 from app.api.v1.health import router as health_router
 from app.api.v1.recommend import router as recommend_router
 

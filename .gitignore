@@ -6,3 +6,4 @@ __pycache__/
 app/api/v2/
 app/api/v3/
 CLAUDE.md
+dir.txt

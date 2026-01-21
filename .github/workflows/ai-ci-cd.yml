@@ -61,6 +61,15 @@ jobs:
           path: build/ai-app.zip
           retention-days: 14
 
+      #  현재 시간 구하기 (KST)
+      - name: Get Current Time
+        uses: 1466587594/get-current-time@v2
+        id: current-time
+        with:
+          format: 'YYYY-MM-DD HH:mm:ss'
+          utcOffset: "+09:00" # 한국 시간
+          timezone: 'Asia/Seoul'
+
       # Phase 5: Discord 성공 알림
       - name: Discord Notification - Success
         if: success()
@@ -71,11 +80,15 @@ jobs:
               "title": "✅ AI CI 성공",
               "color": 5763719,
               "fields": [
-                {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
-                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
-                {"name": "PR Title", "value": "${{ github.event.pull_request.title }}", "inline": false},
-                {"name": "View", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
-              ]
+                {"name": "📁 Repository", "value": "${{ github.repository }}", "inline": false},
+                {"name": "🪄 Merge To", "value": "${{ github.base_ref }}", "inline": true},
+                {"name": "👤 Triggered By", "value": "**${{ github.actor }}**", "inline": true},
+                {"name": "📝 Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
+                {"name": "🔗 Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "Build #${{ github.run_number }} • ${{ steps.current-time.outputs.formattedTime }} KST",
+              }
             }]
         uses: Ilshidur/action-discord@0.4.0
         with:
@@ -91,11 +104,15 @@ jobs:
               "title": "🚨 AI CI 실패",
               "color": 15548997,
               "fields": [
-                {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
-                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
-                {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
-                {"name": "View", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
-              ]
+                {"name": "📁 Repository", "value": "${{ github.repository }}", "inline": false},
+                {"name": "🪄 Merge To", "value": "${{ github.base_ref }}", "inline": true},
+                {"name": "👤 Triggered By", "value": "**${{ github.actor }}**", "inline": true},
+                {"name": "📝 Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
+                {"name": "🔗 Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "Build #${{ github.run_number }} • ${{ steps.current-time.outputs.formattedTime }} KST",
+              }
             }]
         uses: Ilshidur/action-discord@0.4.0
         with:
@@ -276,11 +293,15 @@ jobs:
               "title": "✅ AI CD 성공", 
               "color": 5763719,
               "fields": [
-                {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
-                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
-                {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
-                {"name": "View", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
-              ]
+                {"name": "📁 Repository", "value": "${{ github.repository }}", "inline": false},
+                {"name": "🪄 Merge To", "value": "${{ github.base_ref }}", "inline": true},
+                {"name": "👤 Triggered By", "value": "**${{ github.actor }}**", "inline": true},
+                {"name": "📝 Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
+                {"name": "🔗 Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "Build #${{ github.run_number }} • ${{ steps.current-time.outputs.formattedTime }} KST",
+              }
             }]
         uses: Ilshidur/action-discord@0.4.0
         with:
@@ -296,11 +317,15 @@ jobs:
               "title": "🚨 AI CD 실패",
               "color": 15548997,
               "fields": [
-                {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
-                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
-                {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
-                {"name": "View", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
-              ]
+                {"name": "📁 Repository", "value": "${{ github.repository }}", "inline": false},
+                {"name": "🪄 Merge To", "value": "${{ github.base_ref }}", "inline": true},
+                {"name": "👤 Triggered By", "value": "**${{ github.actor }}**", "inline": true},
+                {"name": "📝 Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
+                {"name": "🔗 Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "Build #${{ github.run_number }} • ${{ steps.current-time.outputs.formattedTime }} KST",
+              }
             }]
         uses: Ilshidur/action-discord@0.4.0
         with:

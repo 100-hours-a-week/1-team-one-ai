@@ -61,6 +61,15 @@ jobs:
           path: build/ai-app.zip
           retention-days: 14
 
+      #  현재 시간 구하기 (KST)
+      - name: Get Current Time
+        uses: 1466587594/get-current-time@v2
+        id: current-time
+        with:
+          format: 'YYYY-MM-DD HH:mm:ss'
+          utcOffset: "+09:00" # 한국 시간
+          timezone: 'Asia/Seoul'
+
       # Phase 5: Discord 성공 알림
       - name: Discord Notification - Success
         if: success()
@@ -72,10 +81,14 @@ jobs:
               "color": 5763719,
               "fields": [
                 {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
-                {"name": "Merge Flow", "value": "${{ github.head_ref }} to ${{ github.base_ref }}", "inline": false},
-                {"name": "PR Title", "value": "${{ github.event.pull_request.title }}", "inline": false},
-                {"name": "View", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
-              ]
+                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
+                {"name": "Triggered By", "value": "${{ github.actor }}", "inline": false},
+                {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
+                {"name": "Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "${{ steps.current-time.outputs.formattedTime }} KST"
+              }
             }]
         uses: Ilshidur/action-discord@0.4.0
         with:
@@ -92,15 +105,19 @@ jobs:
               "color": 15548997,
               "fields": [
                 {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
-                {"name": "Merge Flow", "value": "${{ github.head_ref }} to ${{ github.base_ref }}", "inline": false},
+                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
+                {"name": "Triggered By", "value": "${{ github.actor }}", "inline": false},
                 {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
-                {"name": "View", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
-              ]
+                {"name": "Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "${{ steps.current-time.outputs.formattedTime }} KST"
+              }
             }]
         uses: Ilshidur/action-discord@0.4.0
         with:
           args: 'CI 파이프라인 실행 중 오류가 발생했습니다. 로그를 확인해주세요. <@${{ secrets.DISCORD_MENTION_USER_ID }}> <@${{ secrets.DISCORD_MENTION_USER_ID_2 }}> <@${{ secrets.DISCORD_MENTION_USER_ID_3 }}>'
-
+ 
   # =========================================================
   # CD Job: 병합 시 배포
   # =========================================================
@@ -266,6 +283,15 @@ jobs:
             # zip 파일도 정리
             ls -t ai-app-*.zip | tail -n +6 | xargs -r rm -v
 
+      #  현재 시간 구하기 (KST)
+      - name: Get Current Time
+        uses: 1466587594/get-current-time@v2
+        id: current-time
+        with:
+          format: 'YYYY-MM-DD HH:mm:ss'
+          utcOffset: "+09:00" # 한국 시간
+          timezone: 'Asia/Seoul'
+
       # 9. Discord 성공 알림
       - name: Discord Notification - Success
         if: success()
@@ -277,10 +303,14 @@ jobs:
               "color": 5763719,
               "fields": [
                 {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
-                {"name": "Merge Flow", "value": "${{ github.head_ref }} to ${{ github.base_ref }}", "inline": false},
+                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
+                {"name": "Triggered By", "value": "${{ github.actor }}", "inline": false},
                 {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
-                {"name": "View", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
-              ]
+                {"name": "Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "TAG: ${{ env.DEPLOY_TAG }} • ${{ steps.current-time.outputs.formattedTime }} KST"
+              }
             }]
         uses: Ilshidur/action-discord@0.4.0
         with:
@@ -297,10 +327,14 @@ jobs:
               "color": 15548997,
               "fields": [
                 {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
-                {"name": "Merge Flow", "value": "${{ github.head_ref }} to ${{ github.base_ref }}", "inline": false},
+                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
+                {"name": "Triggered By", "value": "${{ github.actor }}", "inline": false},
                 {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
-                {"name": "View", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
-              ]
+                {"name": "Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "TAG: ${{ env.DEPLOY_TAG }} • ${{ steps.current-time.outputs.formattedTime }} KST"
+              }
             }]
         uses: Ilshidur/action-discord@0.4.0
         with:

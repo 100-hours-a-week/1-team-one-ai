@@ -82,12 +82,12 @@ jobs:
               "fields": [
                 {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
                 {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
-                {"name": "Triggered By", "value": "**${{ github.actor }}**", "inline": false},
-                {"name": "Commit/PR", "value": "```${{ github.event.pull_request.title }}```", "inline": false},
+                {"name": "Triggered By", "value": "${{ github.actor }}", "inline": false},
+                {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
                 {"name": "Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
               ],
               "footer": {
-                "text": "Build #${{ github.run_number }} • ${{ steps.current-time.outputs.formattedTime }} KST"
+                "text": "${{ steps.current-time.outputs.formattedTime }} KST"
               }
             }]
         uses: Ilshidur/action-discord@0.4.0
@@ -106,12 +106,12 @@ jobs:
               "fields": [
                 {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
                 {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
-                {"name": "Triggered By", "value": "**${{ github.actor }}**", "inline": false},
-                {"name": "Commit/PR", "value": "```${{ github.event.pull_request.title }}```", "inline": false},
+                {"name": "Triggered By", "value": "${{ github.actor }}", "inline": false},
+                {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
                 {"name": "Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
               ],
               "footer": {
-                "text": "Build #${{ github.run_number }} • ${{ steps.current-time.outputs.formattedTime }} KST"
+                "text": "${{ steps.current-time.outputs.formattedTime }} KST"
               }
             }]
         uses: Ilshidur/action-discord@0.4.0
@@ -283,6 +283,15 @@ jobs:
             # zip 파일도 정리
             ls -t ai-app-*.zip | tail -n +6 | xargs -r rm -v
 
+      #  현재 시간 구하기 (KST)
+      - name: Get Current Time
+        uses: 1466587594/get-current-time@v2
+        id: current-time
+        with:
+          format: 'YYYY-MM-DD HH:mm:ss'
+          utcOffset: "+09:00" # 한국 시간
+          timezone: 'Asia/Seoul'
+
       # 9. Discord 성공 알림
       - name: Discord Notification - Success
         if: success()
@@ -295,12 +304,12 @@ jobs:
               "fields": [
                 {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
                 {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
-                {"name": "Triggered By", "value": "**${{ github.actor }}**", "inline": false},
-                {"name": "Commit/PR", "value": "```${{ github.event.pull_request.title }}```", "inline": false},
+                {"name": "Triggered By", "value": "${{ github.actor }}", "inline": false},
+                {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
                 {"name": "Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
               ],
               "footer": {
-                "text": "Build #${{ github.run_number }} • ${{ steps.current-time.outputs.formattedTime }} KST"
+                "text": "TAG: ${{ env.DEPLOY_TAG }} • ${{ steps.current-time.outputs.formattedTime }} KST"
               }
             }]
         uses: Ilshidur/action-discord@0.4.0
@@ -319,12 +328,12 @@ jobs:
               "fields": [
                 {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
                 {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
-                {"name": "Triggered By", "value": "**${{ github.actor }}**", "inline": false},
-                {"name": "Commit/PR", "value": "```${{ github.event.pull_request.title }}```", "inline": false},
+                {"name": "Triggered By", "value": "${{ github.actor }}", "inline": false},
+                {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
                 {"name": "Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
               ],
               "footer": {
-                "text": "Build #${{ github.run_number }} • ${{ steps.current-time.outputs.formattedTime }} KST"
+                "text": "TAG: ${{ env.DEPLOY_TAG }} • ${{ steps.current-time.outputs.formattedTime }} KST"
               }
             }]
         uses: Ilshidur/action-discord@0.4.0

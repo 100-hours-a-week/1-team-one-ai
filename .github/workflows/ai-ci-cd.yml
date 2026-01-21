@@ -71,15 +71,15 @@ jobs:
               "title": "✅ AI CI 성공",
               "color": 5763719,
               "fields": [
-                {"name": "Repository", "value": "`${{ github.repository }}`", "inline": true},
-                {"name": "Merge Flow", "value": "`${{ github.head_ref }}` to `${{ github.base_ref }}`", "inline": true},
+                {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
+                {"name": "Merge Flow", "value": "${{ github.head_ref }} to ${{ github.base_ref }}", "inline": false},
                 {"name": "PR Title", "value": "${{ github.event.pull_request.title }}", "inline": false},
                 {"name": "View", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
               ]
             }]
         uses: Ilshidur/action-discord@0.4.0
         with:
-          args: 'CI 파이프라인이 성공적으로 완료되었습니다. <@${{ secrets.DISCORD_MENTION_USER_ID }}>'
+          args: 'CI 파이프라인이 성공적으로 완료되었습니다. <@${{ secrets.DISCORD_MENTION_USER_ID_3 }}>'
 
       # Phase 5: Discord 실패 알림
       - name: Discord Notification - Failure
@@ -91,15 +91,15 @@ jobs:
               "title": "🚨 AI CI 실패",
               "color": 15548997,
               "fields": [
-                {"name": "Repository", "value": "`${{ github.repository }}`", "inline": true},
-                {"name": "Merge Flow", "value": "`${{ github.head_ref }}` to `${{ github.base_ref }}`", "inline": true},
+                {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
+                {"name": "Merge Flow", "value": "${{ github.head_ref }} to ${{ github.base_ref }}", "inline": false},
                 {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
                 {"name": "View", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
               ]
             }]
         uses: Ilshidur/action-discord@0.4.0
         with:
-          args: 'CI 파이프라인 실행 중 오류가 발생했습니다. 로그를 확인해주세요. <@${{ secrets.DISCORD_MENTION_USER_ID }}>'
+          args: 'CI 파이프라인 실행 중 오류가 발생했습니다. 로그를 확인해주세요. <@${{ secrets.DISCORD_MENTION_USER_ID }}> <@${{ secrets.DISCORD_MENTION_USER_ID_2 }}> <@${{ secrets.DISCORD_MENTION_USER_ID_3 }}>'
 
   # =========================================================
   # CD Job: 병합 시 배포
@@ -276,15 +276,15 @@ jobs:
               "title": "✅ AI CD 성공", 
               "color": 5763719,
               "fields": [
-                {"name": "Repository", "value": "`${{ github.repository }}`", "inline": true},
-                {"name": "Merge Flow", "value": "`${{ github.head_ref }}` to `${{ github.base_ref }}`", "inline": true},
+                {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
+                {"name": "Merge Flow", "value": "${{ github.head_ref }} to ${{ github.base_ref }}", "inline": false},
                 {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
                 {"name": "View", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
               ]
             }]
         uses: Ilshidur/action-discord@0.4.0
         with:
-          args: 'CD 파이프라인이 성공적으로 완료되었습니다. <@${{ secrets.DISCORD_MENTION_USER_ID }}>'
+          args: 'CD 파이프라인이 성공적으로 완료되었습니다. <@${{ secrets.DISCORD_MENTION_USER_ID_3 }}>'
 
        # 10. Discord 실패 알림
       - name: Discord Notification - Failure
@@ -296,8 +296,8 @@ jobs:
               "title": "🚨 AI CD 실패",
               "color": 15548997,
               "fields": [
-                {"name": "Repository", "value": "`${{ github.repository }}`", "inline": true},
-                {"name": "Merge Flow", "value": "`${{ github.head_ref }}` to `${{ github.base_ref }}`", "inline": true},
+                {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
+                {"name": "Merge Flow", "value": "${{ github.head_ref }} to ${{ github.base_ref }}", "inline": false},
                 {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
                 {"name": "View", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
               ]

@@ -303,4 +303,4 @@ jobs:
             }]
         uses: Ilshidur/action-discord@0.4.0
         with:
-          args: 'CD 파이프라인 실행 중 오류가 발생했습니다. 로그를 확인해주세요. <@${{ secrets.DISCORD_MENTION_USER_ID }} <@${{ secrets.DISCORD_MENTION_USER_ID_2 }}> <@${{ secrets.DISCORD_MENTION_USER_ID_3 }}'
+          args: 'CD 파이프라인 실행 중 오류가 발생했습니다. 로그를 확인해주세요. <@${{ secrets.DISCORD_MENTION_USER_ID }}> <@${{ secrets.DISCORD_MENTION_USER_ID_2 }}> <@${{ secrets.DISCORD_MENTION_USER_ID_3 }}>'

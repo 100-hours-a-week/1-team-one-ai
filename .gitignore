@@ -9,4 +9,5 @@ app/schemas/v2
 examples/
 scripts/
 tests/test_dataset.py
+tests/services/llm_clients/
 CLAUDE.md

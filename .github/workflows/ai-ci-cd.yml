@@ -72,7 +72,7 @@ jobs:
               "color": 5763719,
               "fields": [
                 {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
-                {"name": "Merge Flow", "value": "${{ github.head_ref }} to ${{ github.base_ref }}", "inline": false},
+                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
                 {"name": "PR Title", "value": "${{ github.event.pull_request.title }}", "inline": false},
                 {"name": "View", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
               ]
@@ -92,7 +92,7 @@ jobs:
               "color": 15548997,
               "fields": [
                 {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
-                {"name": "Merge Flow", "value": "${{ github.head_ref }} to ${{ github.base_ref }}", "inline": false},
+                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
                 {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
                 {"name": "View", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
               ]
@@ -277,7 +277,7 @@ jobs:
               "color": 5763719,
               "fields": [
                 {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
-                {"name": "Merge Flow", "value": "${{ github.head_ref }} to ${{ github.base_ref }}", "inline": false},
+                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
                 {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
                 {"name": "View", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
               ]
@@ -297,7 +297,7 @@ jobs:
               "color": 15548997,
               "fields": [
                 {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
-                {"name": "Merge Flow", "value": "${{ github.head_ref }} to ${{ github.base_ref }}", "inline": false},
+                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
                 {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
                 {"name": "View", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
               ]

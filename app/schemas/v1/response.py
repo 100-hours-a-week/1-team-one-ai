@@ -11,6 +11,36 @@ class TaskStatus(str, Enum):
     FAILED = "FAILED"
 
 
+class ProgressStep(str, Enum):
+    """
+    진행 단계별 메시지 (v1: LLM 추론 단계부터 시작)
+    - v2 이상에서는 HEALTH_SCORE, CATEGORY_PRIORITY, EXERCISE_SEARCH 추가 예정
+    """
+
+    # v2+ 전용 (현재 미사용)
+    # HEALTH_SCORE = "건강 점수 계산 중"            # 10%
+    # CATEGORY_PRIORITY = "카테고리 우선순위 분석 중"  # 25%
+    # EXERCISE_SEARCH = "맞춤 운동 검색 중"          # 40%
+
+    # v1 사용
+    LLM_INFERENCE = "AI가 최적의 루틴 구성 중"  # 60%
+    RESULT_VALIDATION = "최종 추천 결과 검증 중"  # 75%
+    COMPLETED = "운동 플랜 추천 완료!"  # 100%
+
+
+# 진행 단계별 progress 값 매핑
+PROGRESS_STEP_PERCENTAGE: dict[ProgressStep, int] = {
+    # v2+ 전용 (현재 미사용)
+    # ProgressStep.HEALTH_SCORE = 10,
+    # ProgressStep.CATEGORY_PRIORITY = 25,
+    # ProgressStep.EXERCISE_SEARCH = 40,
+    # v1~v3
+    ProgressStep.LLM_INFERENCE: 60,
+    ProgressStep.RESULT_VALIDATION: 75,
+    ProgressStep.COMPLETED: 100,
+}
+
+
 class ExerciseType(str, Enum):
     REPS = "REPS"
     DURATION = "DURATION"

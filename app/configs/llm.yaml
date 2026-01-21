@@ -1,0 +1,43 @@
+default_provider: gemini
+
+providers:
+
+  gemini:
+    spec: gemini_native
+    auth: api_key
+    model: gemini-2.5-flash
+    timeout_sec: 30
+    retry: 2
+
+  openai:
+    spec: openai_compatible
+    auth: api_key
+    base_url: https://api.openai.com/v1
+    model: gpt-4.1-mini
+    timeout_sec: 30
+    retry: 2
+
+  ollama_cloud:
+    spec: openai_compatible
+    auth: api_key
+    base_url: https://api.ollama.ai/v1
+    model: gpt-oss:20b-cloud
+    timeout_sec: 30
+    retry: 2
+
+  self_hosted:
+    spec: openai_compatible
+    auth: none
+    base_url: 
+    model: 	gemma3:12b
+    timeout_sec: 50
+    retry: 3
+
+
+fallback:
+  enabled: true
+  order:
+    - rule-based
+    #- gemini
+    #- openai
+    #- self_hosted

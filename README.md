@@ -17,7 +17,7 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # 서버 실행
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+uvicorn app.main:app --host 0.0.0.0 --port 8000 # --reload
 ```
 
 ## 환경변수
@@ -183,17 +183,34 @@ curl http://localhost:8000/api/v1/health
 
 
 
-## 프로젝트 구조
+## 현재 프로젝트 구조
 
 ```
-app/
-├── api/
-│   └── v1/              # API 라우터
-├── core/                # 설정, 로깅, 예외
-├── data/                # 더미 데이터
-├── schemas/
-│   └── v1/              # Pydantic 모델
-├── services/
-│   └── llm_clients/     # LLM 클라이언트
-└── utils/               # 유틸리티
+.
+├── .env.example              # 환경변수 템플릿
+├── .github/
+│   └── workflows/            # CI/CD 워크플로우
+├── README.md
+├── pyproject.toml            # 프로젝트 설정 (Ruff 등)
+├── requirements.txt          # Python 의존성
+│
+├── app/                      # FastAPI 애플리케이션
+│   ├── main.py               # 앱 엔트리포인트
+│   ├── api/
+│   │   └── v1/               # v1 API 라우터
+│   ├── configs/              # 설정 파일 (llm.yaml 등)
+│   ├── core/                 # 설정, 로깅, 예외
+│   ├── schemas/
+│   │   ├── common.py         # 공통 스키마
+│   │   └── v1/               # v1 Pydantic 모델
+│   ├── services/
+│   │   └── llm_clients/      # LLM 클라이언트
+│   └── utils/                # 유틸리티
+│
+├── examples/                 # 예시 데이터
+│   ├── exercises.json        # 운동 데이터
+│   └── users.json            # 사용자 설문 데이터
+│
+└── tests/                    # 테스트
+    └── conftest.py           # pytest fixture
 ```

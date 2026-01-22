@@ -92,7 +92,7 @@ jobs:
             }]
         uses: Ilshidur/action-discord@0.4.0
         with:
-          args: 'CI 파이프라인이 성공적으로 완료되었습니다. <@${{ secrets.DISCORD_MENTION_USER_ID_3 }}>'
+          args: 'CI 파이프라인이 성공적으로 완료되었습니다. <@&${{ secrets.DISCORD_ROLE_AI }}>'
 
       # Phase 5: Discord 실패 알림
       - name: Discord Notification - Failure
@@ -116,7 +116,7 @@ jobs:
             }]
         uses: Ilshidur/action-discord@0.4.0
         with:
-          args: 'CI 파이프라인 실행 중 오류가 발생했습니다. 로그를 확인해주세요. <@${{ secrets.DISCORD_MENTION_USER_ID }}> <@${{ secrets.DISCORD_MENTION_USER_ID_2 }}> <@${{ secrets.DISCORD_MENTION_USER_ID_3 }}>'
+          args: 'CI 파이프라인 실행 중 오류가 발생했습니다. 로그를 확인해주세요. <@&${{ secrets.DISCORD_ROLE_AI_ONCALL }}>'
  
   # =========================================================
   # CD Job: 병합 시 배포
@@ -201,11 +201,10 @@ jobs:
             
             # uv를 사용하여 설치 (서버에도 uv 설치)
             # 여기서는 운영 환경이므로 GPU 버전을 설치해야 한다면 requirements.txt 설정 따름
-            # 또는 --index-url 옵션 제거
             python3.11 -m pip install uv # 혹시 없으면 설치
             # python3.11 -m uv pip install -r $NEW_RELEASE_DIR/requirements.txt
             # cpu 버전으로 설치
-            python3.11 -m uv pip install --index-url https://download.pytorch.org/whl/cpu -r $NEW_RELEASE_DIR/requirements.txt
+            python3.11 -m uv pip install --extra-index-url https://download.pytorch.org/whl/cpu -r $NEW_RELEASE_DIR/requirements.txt
             echo "3. 심볼릭 링크 교체"
             ln -sfn $NEW_RELEASE_DIR $CURRENT_LINK
             
@@ -309,12 +308,12 @@ jobs:
                 {"name": "Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
               ],
               "footer": {
-                "text": "TAG: ${{ env.DEPLOY_TAG }} • ${{ steps.current-time.outputs.formattedTime }} KST"
+                "text": "${{ steps.current-time.outputs.formattedTime }} KST"
               }
             }]
         uses: Ilshidur/action-discord@0.4.0
         with:
-          args: 'CD 파이프라인이 성공적으로 완료되었습니다. <@${{ secrets.DISCORD_MENTION_USER_ID_3 }}>'
+          args: 'CD 파이프라인이 성공적으로 완료되었습니다. <@&${{ secrets.DISCORD_ROLE_AI }}>'
 
        # 10. Discord 실패 알림
       - name: Discord Notification - Failure
@@ -333,9 +332,9 @@ jobs:
                 {"name": "Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
               ],
               "footer": {
-                "text": "TAG: ${{ env.DEPLOY_TAG }} • ${{ steps.current-time.outputs.formattedTime }} KST"
+                "text": "${{ steps.current-time.outputs.formattedTime }} KST"
               }
             }]
         uses: Ilshidur/action-discord@0.4.0
         with:
-          args: 'CD 파이프라인 실행 중 오류가 발생했습니다. 로그를 확인해주세요. <@${{ secrets.DISCORD_MENTION_USER_ID }}> <@${{ secrets.DISCORD_MENTION_USER_ID_2 }}> <@${{ secrets.DISCORD_MENTION_USER_ID_3 }}>'
+          args: 'CD 파이프라인 실행 중 오류가 발생했습니다. 로그를 확인해주세요. <@&${{ secrets.DISCORD_ROLE_AI_ONCALL }}>'

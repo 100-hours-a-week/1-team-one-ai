@@ -1,13 +1,6 @@
-default_provider: gemini
+default_provider: ollama_cloud
 
 providers:
-
-  gemini:
-    spec: gemini_native
-    auth: api_key
-    model: gemini-2.5-flash
-    timeout_sec: 30
-    retry: 2
 
   openai:
     spec: openai_compatible
@@ -20,8 +13,15 @@ providers:
   ollama_cloud:
     spec: openai_compatible
     auth: api_key
-    base_url: https://api.ollama.ai/v1
+    base_url: https://ollama.com
     model: gpt-oss:20b-cloud
+    timeout_sec: 30
+    retry: 2
+
+  gemini:
+    spec: gemini_native
+    auth: api_key
+    model: gemini-2.5-flash
     timeout_sec: 30
     retry: 2
 

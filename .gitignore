@@ -3,10 +3,13 @@
 .ruff_cache/
 __pycache__/
 .env
+logs/
+
 app/api/v2/
 app/api/v3/
 app/schemas/v2
 examples/
 scripts/
 tests/test_dataset.py
+tests/services/llm_clients/
 CLAUDE.md

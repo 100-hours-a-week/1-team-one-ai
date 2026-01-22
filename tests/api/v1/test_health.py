@@ -1,5 +1,3 @@
-from fastapi.testclient import TestClient
-
 # /api/v1/health 스모크 테스트
 
 
@@ -9,6 +7,8 @@ def test_placeholder():
 
 
 """
+from fastapi.testclient import TestClient
+
 from app.main import app
 
 client = TestClient(app)

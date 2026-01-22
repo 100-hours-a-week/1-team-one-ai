@@ -5,19 +5,20 @@
 ## 요구사항
 
 - Python 3.11.x
+- [uv](https://docs.astral.sh/uv/) (패키지 매니저)
 - Docker (배포 시)
 
 ## 로컬 실행
 
 ```bash
 # 의존성 설치
-pip install -r requirements.txt
+uv sync
 
 # 환경변수 설정
 cp .env.example .env
 
 # 서버 실행
-uvicorn app.main:app --host 0.0.0.0 --port 8000 # --reload
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 # --reload
 ```
 
 ## 환경변수

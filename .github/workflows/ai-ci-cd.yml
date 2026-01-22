@@ -202,9 +202,12 @@ jobs:
             # uv를 사용하여 설치 (서버에도 uv 설치)
             # 여기서는 운영 환경이므로 GPU 버전을 설치해야 한다면 requirements.txt 설정 따름
             python3.11 -m pip install uv # 혹시 없으면 설치
-            # python3.11 -m uv pip install -r $NEW_RELEASE_DIR/requirements.txt
-            # cpu 버전으로 설치
-            python3.11 -m uv pip install --extra-index-url https://download.pytorch.org/whl/cpu -r $NEW_RELEASE_DIR/requirements.txt
+
+            python3.11 -m uv pip install \
+              --index-strategy unsafe-best-match \
+              --extra-index-url https://download.pytorch.org/whl/cpu \
+              -r $NEW_RELEASE_DIR/requirements.txt
+
             echo "3. 심볼릭 링크 교체"
             ln -sfn $NEW_RELEASE_DIR $CURRENT_LINK
             

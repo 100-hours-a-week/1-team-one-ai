@@ -1,4 +1,13 @@
 # app/core/logging.py
+"""
+- def setup_logging(level: int = logging.INFO)
+로깅 전략
+- 로그 레벨: INFO
+- 로그 포맷: [%(asctime)s] %(levelname)s in %(module)s: %(message)s
+- 로그 파일: logs/app.log
+- 로그 백업: 5개
+- 로그 최대 크기: 10MB
+"""
 
 import logging
 from logging.handlers import RotatingFileHandler
@@ -16,7 +25,7 @@ def setup_logging(level: int = logging.INFO) -> None:
     """애플리케이션 로깅을 설정한다.
 
     Args:
-        level: 로그 레벨 (기본값: logging.INFO)
+    - level: 로그 레벨 (기본값: logging.INFO)
     """
     LOG_DIR.mkdir(exist_ok=True)
 

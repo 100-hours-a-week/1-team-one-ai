@@ -29,15 +29,8 @@ providers:
     spec: openai_compatible
     auth: none
     base_url: 
-    model: 	gemma3:12b
+    model: gemma3:12b
     timeout_sec: 50
     retry: 3
 
-
-fallback:
-  enabled: true
-  order:
-    - rule-based
-    #- gemini
-    #- openai
-    #- self_hosted
+fallback: true

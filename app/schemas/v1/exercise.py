@@ -1,14 +1,21 @@
+# app/schemas/v1/exercise.py
+"""
+운동 데이터 스키마 (v1)
+- class BodyPart(str, Enum)
+- class DifficultyLevel(int, Enum)
+- class Exercise(BaseModel)
+"""
+
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
-class ExerciseType(str, Enum):
-    REPS = "REPS"
-    DURATION = "DURATION"
+from app.schemas.common import ExerciseType
 
 
 class BodyPart(str, Enum):
+    """운동 종류: 운동 영향 부위"""
+
     NECK = "neck"
     SHOULDER = "shoulder"
     WRIST = "wrist"
@@ -16,6 +23,8 @@ class BodyPart(str, Enum):
 
 
 class DifficultyLevel(int, Enum):
+    """운동 난이도: 1~3의 정수 값"""
+
     EASY = 1
     NORMAL = 2
     HARD = 3

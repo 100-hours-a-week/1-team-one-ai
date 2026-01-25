@@ -12,6 +12,5 @@ app/api/v3/
 app/schemas/v2
 examples/
 scripts/
-tests/pilot/
-tests/services/
+#tests/pilot/
 CLAUDE.md

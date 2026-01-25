@@ -13,10 +13,11 @@ from openai import (
     OpenAI,
     RateLimitError,
 )
+from pydantic import BaseModel
 
-from app.services.llm_clients.base import LLMClient
-from app.services.llm_clients.exceptions import (
+from app.services.llm_clients.base import (
     LLMAuthenticationError,
+    LLMClient,
     LLMInvalidResponseError,
     LLMNetworkError,
     LLMTimeoutError,
@@ -42,6 +43,7 @@ class OpenAIClient(LLMClient):
         system_prompt: str,
         user_prompt: str,
         *,
+        response_schema: type[BaseModel] | None = None,
         timeout: Optional[float] = None,
     ) -> str:
         """OpenAI Chat Completions API를 호출하여 텍스트를 생성한다.
@@ -65,9 +67,13 @@ class OpenAIClient(LLMClient):
         logger.info("OpenAI 요청 시작: model=%s, timeout=%.1fs", self._model, request_timeout)
 
         try:
-            response = self._client.chat.completions.create(
+            parse_kwargs: dict = {}
+            if response_schema is not None:
+                parse_kwargs["text_format"] = response_schema
+
+            response = self._client.responses.parse(
                 model=self._model,
-                messages=[
+                input=[
                     {
                         "role": "system",
                         "content": system_prompt,
@@ -78,6 +84,7 @@ class OpenAIClient(LLMClient):
                     },
                 ],
                 timeout=request_timeout,
+                **parse_kwargs,
             )
 
         except TimeoutError as exc:
@@ -105,33 +112,17 @@ class OpenAIClient(LLMClient):
             raise LLMNetworkError("OpenAI API error") from exc
 
         try:
-            choice = response.choices[0]
-
-            # get message whether it's an attribute or a mapping
-            message = getattr(choice, "message", None)
-            if message is None and isinstance(choice, dict):
-                message = choice.get("message")
-
-            if message is None:
-                logger.error("OpenAI 응답 형식 오류: message 없음")
+            parsed = response.output_parsed
+            if parsed is None:
+                logger.error("OpenAI 응답 형식 오류: output_parsed 없음")
                 raise LLMInvalidResponseError(
-                    "OpenAI returned unexpected response format: missing message"
+                    "OpenAI returned unexpected response format: missing parsed output"
                 )
 
-            # get content whether it's an attribute or a mapping
-            content = getattr(message, "content", None)
-            if content is None and isinstance(message, dict):
-                content = message.get("content")
-
-            if not isinstance(content, str):
-                logger.error("OpenAI 응답 형식 오류: content 없음")
-                raise LLMInvalidResponseError(
-                    "OpenAI returned unexpected response format: missing content"
-                )
-
+            content = parsed.model_dump_json()
             logger.info("OpenAI 요청 완료: 응답 길이=%d", len(content))
-            return content.strip()
+            return content
 
-        except (IndexError, AttributeError) as exc:
+        except AttributeError as exc:
             logger.error("OpenAI 응답 파싱 오류: %s", exc)
             raise LLMInvalidResponseError("OpenAI returned unexpected response format") from exc

@@ -1,4 +1,5 @@
 # /api/v1/health 스모크 테스트
+# uv run pytest -v tests/api/v1/test_health.py
 
 
 def test_placeholder():

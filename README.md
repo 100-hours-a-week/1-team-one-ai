@@ -23,13 +23,16 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 # --reload
 
 ## 환경변수
 
-| 변수 | 설명 | 기본값 |
-|------|------|--------|
-| `HOST` | 서버 호스트 | `0.0.0.0` |
-| `PORT` | 서버 포트 | `8000` |
-| `OPENAI_API_KEY` | OPENAI API 키 | - |
-| `GEMINI_API_KEY` | GEMINI API 키 | - |
-| `OLLAMA_API_KEY` | OLLAMA API 키 | - |
+| 변수 | 설명 | 기본값 | 필수 |
+|-----|-----|------|-----|
+| `HOST` | 서버 호스트 | `0.0.0.0` | X |
+| `PORT` | 서버 포트 | `8000` | X |
+| `OPENAI_API_KEY` | OPENAI API 키 | - | X |
+| `GEMINI_API_KEY` | GEMINI API 키 | - | X |
+| `OLLAMA_API_KEY` | OLLAMA API 키 | - | O |
+| `EXERCISE_API_URL` | 운동 데이터 API URL | - | X |
+| `EXERCISES_PATH` | exercises.json 저장 경로 | `app/data/exercises.json` | X |
+
 
 ## API 엔드포인트
 
@@ -38,14 +41,37 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 # --reload
 | `GET` | `/` | 헬스체크 |
 | `GET` | `/api/v1/health` | 상세 헬스체크 |
 | `POST` | `/api/v1/routines` | 운동 루틴 추천 |
+| `POST` | `/api/v1/exercises/update` | 운동 데이터 강제 업데이트 |
 
 
-## 헬스체크
+## GET /api/v1/health
+상세 헬스체크
 
 ```bash
 curl http://localhost:8000/api/v1/health
 ```
 
+
+## POST /api/v1/exercises/update
+운동 데이터 강제 업데이트 & 로드
+
+```bash
+curl -X POST http://localhost:8000/api/v1/exercises/update
+```
+
+### Response
+
+```json
+{
+    "status": "ok",
+    "count": 42
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | string | 처리 결과 (`ok`) |
+| `count` | int | 로드된 운동 데이터 개수 |
 
 
 ## POST /api/v1/routines

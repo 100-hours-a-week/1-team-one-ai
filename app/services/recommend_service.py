@@ -150,9 +150,7 @@ class RecommendService:
             return LLMRoutineOutput.model_validate(data)
 
         except json.JSONDecodeError as e:
-            logger.error("JSON 파싱 실패: %s", e)
             raise LLMInvalidResponseError(f"JSON 파싱 실패: {e}") from e
 
         except ValidationError as e:
-            logger.error("스키마 검증 실패: %s", e)
             raise LLMInvalidResponseError(f"스키마 검증 실패: {e}") from e

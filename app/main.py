@@ -16,15 +16,12 @@ from app.data.loader import exercise_repository, fetch_and_save_exercises
 
 logger = logging.getLogger(__name__)
 
-# 애플리케이션 초기화
-exercise_api = "http://dev.raisedeveloper.com/api/exercise"
-
 # 1. 로깅 설정
 setup_logging()
 
-# 2. 운동 데이터 로드
+# 2. 운동 데이터 로드 (settings.EXERCISE_API_URL 사용)
 try:
-    fetch_and_save_exercises(exercise_api)
+    fetch_and_save_exercises()
 
 except Exception as e:
     logger.warning("운동 데이터 fetch 실패, 기존 exercises.json 사용: %s", e)

@@ -4,7 +4,6 @@ app/services/llm_clients/ollama_client.py
 
 from __future__ import annotations
 
-import logging
 from typing import Optional
 
 from httpx import TimeoutException
@@ -18,8 +17,6 @@ from app.services.llm_clients.base import (
     LLMNetworkError,
     LLMTimeoutError,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class OllamaClient(LLMClient):
@@ -66,8 +63,7 @@ class OllamaClient(LLMClient):
             LLMInvalidResponseError: 모델 없음(404) 또는 응답 형식 오류.
         """
         request_timeout = timeout or self._default_timeout
-
-        logger.info("Ollama 요청 시작: model=%s, timeout=%.1fs", self._model, request_timeout)
+        _ = request_timeout  # timeout is handled at client init
 
         try:
             parse_kwargs: dict = {}
@@ -82,31 +78,24 @@ class OllamaClient(LLMClient):
             )
 
         except TimeoutException as exc:
-            logger.error("Ollama 요청 타임아웃: %s", exc)
             raise LLMTimeoutError("Ollama request timed out") from exc
 
         except ResponseError as exc:
             self._handle_response_error(exc)
 
         except RequestError as exc:
-            logger.error("Ollama 요청 오류: %s", exc)
             raise LLMNetworkError(f"Ollama request error: {exc}") from exc
 
-        # Ollama chat()은 ChatResponse 객체 반환
-        # response.message.content로 접근
         try:
             content = response.response
             if not isinstance(content, str):
-                logger.error("Ollama 응답 형식 오류: content가 문자열이 아님")
                 raise LLMInvalidResponseError(
                     "Ollama returned unexpected response format: content is not a string"
                 )
 
-            logger.info("Ollama 요청 완료: 응답 길이=%d", len(content))
             return content.strip()
 
         except AttributeError as exc:
-            logger.error("Ollama 응답 파싱 오류: %s", exc)
             raise LLMInvalidResponseError("Ollama returned unexpected response format") from exc
 
     def _handle_response_error(self, exc: ResponseError) -> None:
@@ -115,31 +104,23 @@ class OllamaClient(LLMClient):
         error_msg = str(exc.error)
 
         if status == 400:
-            logger.error("Ollama 잘못된 요청 (400): %s", error_msg)
             raise LLMInvalidResponseError(f"Ollama bad request: {error_msg}") from exc
 
         if status == 401:
-            logger.error("Ollama 인증 실패 (401): %s", error_msg)
             raise LLMAuthenticationError(f"Ollama authentication failed: {error_msg}") from exc
 
         if status == 404:
-            logger.error("Ollama 모델 없음 (404): %s", error_msg)
             raise LLMInvalidResponseError(f"Ollama model not found: {error_msg}") from exc
 
         if status == 429:
-            logger.warning("Ollama rate limit 초과 (429): %s", error_msg)
             raise LLMNetworkError(f"Ollama rate limit exceeded: {error_msg}") from exc
 
         if status == 500:
-            logger.error("Ollama 내부 서버 오류 (500): %s", error_msg)
             raise LLMNetworkError(f"Ollama internal server error: {error_msg}") from exc
 
         if status == 502:
-            logger.error("Ollama 게이트웨이 오류 (502): %s", error_msg)
             raise LLMNetworkError(
                 f"Ollama bad gateway (cloud model unreachable): {error_msg}"
             ) from exc
 
-        # 기타 알 수 없는 상태 코드
-        logger.error("Ollama 알 수 없는 오류 (status=%d): %s", status, error_msg)
-        raise LLMNetworkError(f"Ollama unknown error (status {status}): {error_msg}") from exc
+        raise LLMNetworkError(f"Ollama error (status {status}): {error_msg}") from exc

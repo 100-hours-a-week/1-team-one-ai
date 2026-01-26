@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     LLM_BASE_URL: str | None = None
 
     # Exercise Data
-    EXERCISE_API_URL: str = "https://dev.raisedeveloper.com/api/exercise"
+    EXERCISE_API_URL: str = "https://dev.raisedeveloper.com/api/exercises"
     EXERCISES_PATH: Path = _DEFAULT_EXERCISES_PATH
 
 

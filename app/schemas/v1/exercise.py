@@ -39,7 +39,7 @@ class Exercise(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="ignore", populate_by_name=True)
 
-    exerciseId: str = Field(..., alias="id", description="운동 고유 ID")
+    exerciseId: int = Field(..., alias="id", description="운동 고유 ID")
     name: str = Field(..., description="운동 이름")
     content: str = Field(..., description="운동 수행 방법 설명")
     effect: str = Field(..., description="운동 효과 설명")

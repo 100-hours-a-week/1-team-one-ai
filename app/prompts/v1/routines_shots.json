@@ -5,7 +5,7 @@
             "reason": "아침 워밍업 루틴으로 목 건강을 최우선으로 고려하여 목운동 위주로 구성했어요.",
             "steps": [
                 {
-                    "exerciseId": "seated_020",
+                    "exerciseId": 20,
                     "type": "DURATION",
                     "stepOrder": 1,
                     "limitTime": 60,
@@ -13,7 +13,7 @@
                     "targetReps": null
                 },
                 {
-                    "exerciseId": "seated_019",
+                    "exerciseId": 19,
                     "type": "REPS",
                     "stepOrder": 2,
                     "limitTime": 60,
@@ -27,7 +27,7 @@
             "reason": "두번째 루틴은 오래 앉아 있는 사용자를 위해 목과 허리를 중점적으로 풀어주는 운동으로 구성했어요.",
             "steps": [
                 {
-                    "exerciseId": "seated_002",
+                    "exerciseId": 2,
                     "type": "DURATION",
                     "stepOrder": 1,
                     "limitTime": 60,
@@ -35,7 +35,7 @@
                     "targetReps": null
                 },
                 {
-                    "exerciseId": "seated_015",
+                    "exerciseId": 15,
                     "type": "REPS",
                     "stepOrder": 2,
                     "limitTime": 60,

@@ -8,6 +8,7 @@ from typing import Optional
 from openai import (
     APIConnectionError,
     APIError,
+    APITimeoutError,
     AuthenticationError,
     InternalServerError,
     OpenAI,
@@ -51,6 +52,7 @@ class OpenAIClient(LLMClient):
         Args:
             system_prompt: 시스템 레벨 지침 프롬프트.
             user_prompt: 사용자 프롬프트 문자열.
+            response_schema: Optional Pydantic 모델 타입. Structured Outputs 사용 시 적용.
             timeout: 요청 타임아웃(초). None이면 default_timeout 사용.
 
         Returns:
@@ -91,10 +93,13 @@ class OpenAIClient(LLMClient):
             logger.error("OpenAI 요청 타임아웃: %s", exc)
             raise LLMTimeoutError("OpenAI request timed out") from exc
 
+        except APITimeoutError as exc:  # APIConnectionError보다 먼저!
+            logger.error("OpenAI 요청 타임아웃: %s", exc)
+            raise LLMTimeoutError("OpenAI request timed out") from exc
+
         except APIConnectionError as exc:
             logger.error("OpenAI 네트워크 오류: %s", exc)
             raise LLMNetworkError("OpenAI network error") from exc
-
         except InternalServerError as exc:
             logger.error("OpenAI 서버 오류: %s", exc)
             raise LLMNetworkError("OpenAI internal server error") from exc

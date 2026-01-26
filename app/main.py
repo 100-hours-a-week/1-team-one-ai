@@ -6,9 +6,9 @@ from pydantic import ValidationError
 
 from app.api.v1.router import router as v1_router
 from app.core.exceptions import (
-    ServiceUnavailableError,  # 503
+    AppError,  # 500
+    app_error_handler,  # 새로 추가: AppError 통합 핸들러
     internal_exception_handler,  # 500
-    service_unavailable_handler,  # 503
     validation_exception_handler,  # 422
 )
 from app.core.logging import setup_logging
@@ -47,8 +47,8 @@ app = FastAPI(
 )
 
 app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore
-app.add_exception_handler(ServiceUnavailableError, service_unavailable_handler)  # type: ignore
-app.add_exception_handler(Exception, internal_exception_handler)
+app.add_exception_handler(AppError, app_error_handler)  # type: ignore  # AppError 하위 클래스 처리
+app.add_exception_handler(Exception, internal_exception_handler)  # 마지막: fallback
 
 
 app.include_router(v1_router, prefix="/api/v1")

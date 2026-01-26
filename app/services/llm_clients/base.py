@@ -5,9 +5,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional
 
+from fastapi import status
 from pydantic import BaseModel
 
-from app.core.exceptions import ExpectedServiceError
+from app.core.exceptions import AppError
 
 
 class LLMClient(ABC):
@@ -41,28 +42,56 @@ class LLMClient(ABC):
             LLM이 생성한 원시 텍스트 응답
 
         Raises:
-            LLMTimeoutError: 요청 타임아웃
-            LLMNetworkError: 네트워크/연결 오류
-            LLMInvalidResponseError: 예상치 못한 응답 형식
+            LLMTimeoutError: 요청 타임아웃 (504)
+            LLMNetworkError: 네트워크/연결 오류 (502)
+            LLMAuthenticationError: 인증 실패 / 잘못된 API 키 (500)
+            LLMInvalidResponseError: 예상치 못한 응답 형식 (502)
         """
         ...
 
 
-class LLMError(ExpectedServiceError):  # Reparent from Exception
-    """LLM 클라이언트 공통 베이스 예외"""
+class LLMError(AppError):
+    """LLM 클라이언트 공통 베이스 예외 - 502 (기본값)"""
+
+    status_code = status.HTTP_502_BAD_GATEWAY
+    error_code = "LLM_ERROR"
 
 
 class LLMTimeoutError(LLMError):
-    """LLM 호출 타임아웃"""
+    """
+    LLM 호출 타임아웃 - 504 Gateway Timeout
+    이유: 외부 LLM 서비스 응답 시간 초과
+    """
+
+    status_code = status.HTTP_504_GATEWAY_TIMEOUT
+    error_code = "LLM_TIMEOUT"
 
 
 class LLMNetworkError(LLMError):
-    """네트워크 오류 / 연결 실패 (Internal Server Error 포함)"""
+    """
+    네트워크 오류 / 연결 실패 - 502 Bad Gateway
+    이유: 외부 LLM 서비스 연결 실패, Rate Limit, 서버 오류 등
+    """
+
+    status_code = status.HTTP_502_BAD_GATEWAY
+    error_code = "LLM_NETWORK_ERROR"
 
 
 class LLMInvalidResponseError(LLMError):
-    """응답 형식이 기대와 다를 때"""
+    """
+    응답 형식이 기대와 다름 - 502 Bad Gateway
+    이유: 외부 LLM 서비스가 유효하지 않은 응답을 반환
+    """
+
+    status_code = status.HTTP_502_BAD_GATEWAY
+    error_code = "LLM_INVALID_RESPONSE"
 
 
 class LLMAuthenticationError(LLMError):
-    """인증 실패 / 잘못된 API 키"""
+    """
+    인증 실패 / 잘못된 API 키 - 500 Internal Server Error
+    이유: 서버의 LLM API 키 설정 오류 (클라이언트 잘못이 아님)
+    """
+
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    error_code = "LLM_AUTHENTICATION_ERROR"

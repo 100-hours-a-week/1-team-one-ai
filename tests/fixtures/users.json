@@ -1,0 +1,16 @@
+[
+    {
+        "routineCount": 2,
+        "survey": [
+            {"questionContent": "목 통증 정도", "selectedOptionSortOrder": 4},
+            {"questionContent": "어깨 통증 정도", "selectedOptionSortOrder": 3},
+            {"questionContent": "손목 통증 정도", "selectedOptionSortOrder": 2}
+        ]
+    },
+    {
+        "routineCount": 1,
+        "survey": [
+            {"questionContent": "허리 통증 정도", "selectedOptionSortOrder": 5}
+        ]
+    }
+]

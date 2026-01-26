@@ -17,7 +17,7 @@ from app.data.loader import exercise_repository, fetch_and_save_exercises
 logger = logging.getLogger(__name__)
 
 # 애플리케이션 초기화
-exercise_api = "http://example.com/api"
+exercise_api = "http://dev.raisedeveloper.com/api/exercise"
 
 # 1. 로깅 설정
 setup_logging()

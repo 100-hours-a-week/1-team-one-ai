@@ -38,7 +38,7 @@ def fetch_and_save_exercises(url: str) -> None:
     try:
         response = httpx.get(
             url,
-            timeout=httpx.Timeout(5.0, connect=3.0),
+            timeout=httpx.Timeout(10.0),
         )
         response.raise_for_status()
 

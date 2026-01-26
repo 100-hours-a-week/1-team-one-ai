@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Optional
 
 from openai import (
@@ -23,8 +22,6 @@ from app.services.llm_clients.base import (
     LLMNetworkError,
     LLMTimeoutError,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class OpenAIClient(LLMClient):
@@ -66,8 +63,6 @@ class OpenAIClient(LLMClient):
         """
         request_timeout = timeout or self._default_timeout
 
-        logger.info("OpenAI 요청 시작: model=%s, timeout=%.1fs", self._model, request_timeout)
-
         try:
             parse_kwargs: dict = {}
             if response_schema is not None:
@@ -90,44 +85,34 @@ class OpenAIClient(LLMClient):
             )
 
         except TimeoutError as exc:
-            logger.error("OpenAI 요청 타임아웃: %s", exc)
             raise LLMTimeoutError("OpenAI request timed out") from exc
 
-        except APITimeoutError as exc:  # APIConnectionError보다 먼저!
-            logger.error("OpenAI 요청 타임아웃: %s", exc)
+        except APITimeoutError as exc:
             raise LLMTimeoutError("OpenAI request timed out") from exc
 
         except APIConnectionError as exc:
-            logger.error("OpenAI 네트워크 오류: %s", exc)
             raise LLMNetworkError("OpenAI network error") from exc
+
         except InternalServerError as exc:
-            logger.error("OpenAI 서버 오류: %s", exc)
             raise LLMNetworkError("OpenAI internal server error") from exc
 
         except AuthenticationError as exc:
-            logger.error("OpenAI 인증 실패: %s", exc)
             raise LLMAuthenticationError("OpenAI authentication error") from exc
 
         except RateLimitError as exc:
-            logger.warning("OpenAI rate limit 초과: %s", exc)
             raise LLMNetworkError("OpenAI rate limit exceeded") from exc
 
         except APIError as exc:
-            logger.error("OpenAI API 오류: %s", exc)
-            raise LLMNetworkError("OpenAI API error") from exc
+            raise LLMNetworkError(f"OpenAI API error: {exc}") from exc
 
         try:
             parsed = response.output_parsed
             if parsed is None:
-                logger.error("OpenAI 응답 형식 오류: output_parsed 없음")
                 raise LLMInvalidResponseError(
                     "OpenAI returned unexpected response format: missing parsed output"
                 )
 
-            content = parsed.model_dump_json()
-            logger.info("OpenAI 요청 완료: 응답 길이=%d", len(content))
-            return content
+            return parsed.model_dump_json()
 
         except AttributeError as exc:
-            logger.error("OpenAI 응답 파싱 오류: %s", exc)
             raise LLMInvalidResponseError("OpenAI returned unexpected response format") from exc

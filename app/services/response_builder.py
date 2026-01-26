@@ -279,7 +279,7 @@ class ResponseBuilder:
 
         # 범위 내: 그대로 반환
         if self.MIN_ROUTINE_TIME <= total_time <= self.MAX_ROUTINE_TIME:
-            logger.debug("루틴 %d: 총 시간 %d초 (범위 내)", routine_order, total_time)
+            logger.debug("루틴 %d: 총 시간 %d초 (범위 내, 조정 불필요)", routine_order, total_time)
             return steps
 
         # 시간 초과: 뒤에서부터 스텝 제거

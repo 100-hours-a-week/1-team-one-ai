@@ -14,15 +14,16 @@ from pathlib import Path
 
 import httpx
 
+from app.core.config import settings
 from app.schemas.v1.exercise import Exercise
 
 logger = logging.getLogger(__name__)
 
-DATA_DIR = Path(__file__).parent
-EXERCISES_PATH = DATA_DIR / "exercises.json"
 
-
-def fetch_and_save_exercises(url: str) -> None:
+def fetch_and_save_exercises(
+    url: str = settings.EXERCISE_API_URL,
+    path: Path = settings.EXERCISES_PATH,
+) -> None:
     """
     운동 데이터를 외부 API에서 받아와서 JSON으로 저장.
 
@@ -39,6 +40,7 @@ def fetch_and_save_exercises(url: str) -> None:
         response = httpx.get(
             url,
             timeout=httpx.Timeout(10.0),
+            follow_redirects=True,
         )
         response.raise_for_status()
 
@@ -47,28 +49,21 @@ def fetch_and_save_exercises(url: str) -> None:
         if not isinstance(data, list):
             raise ValueError("Invalid response format: expected list")
 
-    except httpx.RequestError as e:
-        logger.error("Failed to fetch exercises (network error): %s", e)
+    except httpx.RequestError:
         raise
 
-    except httpx.HTTPStatusError as e:
-        logger.error(
-            "Failed to fetch exercises (HTTP %s): %s",
-            e.response.status_code,
-            e.response.text,
-        )
+    except httpx.HTTPStatusError:
         raise
 
-    except (ValueError, json.JSONDecodeError) as e:
-        logger.error("Invalid JSON response from exercises API: %s", e)
+    except (ValueError, json.JSONDecodeError):
         raise
 
     # 모든 검증을 통과한 경우에만 파일 저장
-    EXERCISES_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with EXERCISES_PATH.open("w", encoding="utf-8") as f:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-    logger.info("Exercises data fetched and saved: %s", EXERCISES_PATH)
+    logger.info("Exercises 데이터 fetch 및 로드 완료: %s", path)
 
 
 @dataclass
@@ -92,7 +87,7 @@ class ExerciseRepository:
         if not self._loaded:
             self.load()
 
-    def load(self, path: Path = EXERCISES_PATH) -> None:
+    def load(self, path: Path = settings.EXERCISES_PATH) -> None:
         """
         exercises.json을 로드하고 캐싱.
 
@@ -104,9 +99,10 @@ class ExerciseRepository:
         - ~~ValidationError: 스키마 검증 실패 시~~
             -> 스키마 검증 실패 시 로드 중단
         """
-        if self._loaded:
-            logger.debug("Exercises already loaded, skipping")
-            return
+        # 순수 로더로 수정
+        # if self._loaded:
+        #    logger.debug("Exercises already loaded, skipping")
+        #    return
 
         if not path.exists():
             raise FileNotFoundError(f"exercises.json not found: {path}")
@@ -124,7 +120,7 @@ class ExerciseRepository:
         self._loaded = True
 
         logger.info(
-            "Exercises loaded: %d items, %d unique IDs",
+            "Exercises data 리로드 완료: %d 개 운동, %d unique IDs",
             len(exercises),
             len(self._exercise_ids),
         )

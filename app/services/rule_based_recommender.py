@@ -124,7 +124,7 @@ class RuleBasedRecommender:
         recommend_routines 호출 시 루틴 수 (routine_count) 만큼 수행
         """
         steps: list[RoutineStep] = []
-        used_exercise_ids: set[str] = set()
+        used_exercise_ids: set[int] = set()
         step_order = 1  # 단일 루틴 내 스텝 순서
         total_time = 0  # 단일 루틴 총 시간
 
@@ -181,7 +181,7 @@ class RuleBasedRecommender:
     def get_filler_steps(
         self,
         target_time: int,
-        exclude_ids: set[str] | None = None,
+        exclude_ids: set[int] | None = None,
     ) -> list[RoutineStep]:
         """
         시간 보충용 스텝 생성.

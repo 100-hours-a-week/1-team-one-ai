@@ -34,6 +34,7 @@ async def update_exercises() -> dict:
     """
     try:
         fetch_and_save_exercises()
+
     except Exception as e:
         logger.error("운동 데이터 fetch 실패: %s", e)
         raise ExerciseDataError(f"운동 데이터 fetch 실패: {e}") from e
@@ -42,7 +43,7 @@ async def update_exercises() -> dict:
         exercise_repository.load()
 
     except Exception as e:
-        logger.error("운동 데이터 reload 실패: %s", e)
-        raise ExerciseDataError(f"운동 데이터 reload 실패: {e}") from e
+        logger.error("운동 데이터 load 실패: %s", e)
+        raise ExerciseDataError(f"운동 데이터 load 실패: {e}") from e
 
     return {"status": "ok", "count": len(exercise_repository.exercise_ids)}

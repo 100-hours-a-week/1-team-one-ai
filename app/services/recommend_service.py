@@ -120,7 +120,7 @@ class RecommendService:
         # 모든 재시도 실패 → fallback
         logger.warning(
             "LLM 모든 재시도 실패 (%d회), fallback_enabled=%s",
-            self._max_retries + 1,
+            self._max_retries,
             self._fallback_enabled,
         )
 

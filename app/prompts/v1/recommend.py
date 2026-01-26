@@ -46,7 +46,7 @@ OUTPUT_SCHEMA = """\
       "reason": "<string, 한국어, 이 루틴을 추천한 이유, 사용자 설문과 연관지어 설명>",
       "steps": [
         {
-          "exerciseId": "<string, Available Exercises에 존재하는 ID만 사용 가능>",
+          "exerciseId": "<int, Available Exercises에 존재하는 ID만 사용 가능>",
           "type": "<string, 해당 운동의 원본 type을 그대로 복사. REPS 또는 DURATION>",
           "stepOrder": <int, 루틴 내 운동 순서, 1부터 시작>,
           "limitTime": <int, 이 스텝에 허용된 최대 시간(초), 예: 30~60>,

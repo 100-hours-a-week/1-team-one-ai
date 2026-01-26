@@ -62,7 +62,7 @@ class RoutineStep(BaseModel):
     루틴 내 단일 운동 스텝
     """
 
-    exerciseId: str = Field(..., description="운동 ID")
+    exerciseId: int = Field(..., description="운동 ID")
     type: ExerciseType = Field(..., description="운동 수행 방식")
     stepOrder: int = Field(..., ge=1, description="루틴 내 순서")
 

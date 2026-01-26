@@ -46,8 +46,17 @@ def fetch_and_save_exercises(
 
         data = response.json()
 
-        if not isinstance(data, list):
-            raise ValueError("Invalid response format: expected list")
+        logger.info("운동 데이터 fetch 완료: %s", data["code"])
+
+        if isinstance(data, dict):
+            data = data.get("data")
+
+            if isinstance(data, dict):
+                data = data["exercises"]  # list
+            else:
+                raise ValueError("Invalid response format: 'data' is not a dict")
+        else:
+            raise ValueError("Invalid response format: expected dict")
 
     except httpx.RequestError:
         raise
@@ -78,7 +87,7 @@ class ExerciseRepository:
     """
 
     _exercises: tuple[Exercise, ...] = field(default_factory=tuple)
-    _exercise_ids: frozenset[str] = field(default_factory=frozenset)
+    _exercise_ids: frozenset[int] = field(default_factory=frozenset)
     _raw_data: list[dict] = field(default_factory=list)
     _loaded: bool = False
 
@@ -96,6 +105,7 @@ class ExerciseRepository:
 
         Raises:
         - FileNotFoundError: 파일이 없을 때
+        -
         - ~~ValidationError: 스키마 검증 실패 시~~
             -> 스키마 검증 실패 시 로드 중단
         """
@@ -126,7 +136,7 @@ class ExerciseRepository:
         )
 
     @property
-    def exercise_ids(self) -> frozenset[str]:
+    def exercise_ids(self) -> frozenset[int]:
         """유효한 exerciseId 집합 (유효성 검증용)."""
         self._ensure_loaded()
         return self._exercise_ids
@@ -141,7 +151,7 @@ class ExerciseRepository:
         """운동 데이터가 정상적으로 로드되었는지 확인 (health check용)."""
         return self._loaded and len(self._exercise_ids) > 0
 
-    def is_valid_exercise_id(self, exercise_id: str) -> bool:
+    def is_valid_exercise_id(self, exercise_id: int) -> bool:
         """exerciseId 유효성 검사."""
         self._ensure_loaded()
         return exercise_id in self._exercise_ids

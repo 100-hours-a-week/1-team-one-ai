@@ -47,7 +47,7 @@ class ResponseBuilder:
 
     def __init__(
         self,
-        valid_exercise_ids: frozenset[str] | None = None,
+        valid_exercise_ids: frozenset[int] | None = None,
         fallback_recommender: RuleBasedRecommender | None = None,
     ) -> None:
         """

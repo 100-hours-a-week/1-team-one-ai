@@ -41,4 +41,4 @@ log_cli = true
 log_cli_level = "INFO"
 log_file = "logs/pytest.log"
 log_file_level = "INFO"
-log_file_format = "%(levelname)s %(name)s: %(message)s"
+log_file_format = "%(asctime)s - %(levelname)s - %(name)s - %(message)s"

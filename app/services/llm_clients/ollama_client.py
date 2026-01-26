@@ -1,4 +1,6 @@
-# app/services/llm_clients/ollama_client.py
+"""
+app/services/llm_clients/ollama_client.py
+"""
 
 from __future__ import annotations
 
@@ -25,12 +27,11 @@ class OllamaClient(LLMClient):
         self,
         *,
         api_key: str,
-        base_url: str = "https://ollama.com",
         model: str = "gpt-oss:120b-cloud",
         default_timeout: float = 30.0,
     ) -> None:
         self._client = Client(
-            host=base_url,
+            host="https://ollama.com",  # "http://localhost:11434"
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=default_timeout,
         )

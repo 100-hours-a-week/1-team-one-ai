@@ -14,49 +14,97 @@ from fastapi.responses import JSONResponse
 
 from app.schemas.common import ErrorDetail, ErrorResponse
 
+# app/core/exceptions.py
+"""
+공통 예외 정의
+- HTTP 상태 코드를 가진 애플리케이션 예외 계층
+- 전역 예외 핸들러
+"""
 
-class ExpectedServiceError(Exception):
+
+class AppError(Exception):
     """
-    예상 가능한 모든 error
-    HTTP 200 (FAILED)
+    애플리케이션 공통 베이스 예외
+    - 모든 도메인/서비스 예외의 부모
+    - HTTP status code와 error code를 가짐
     """
 
-    pass
+    status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR
+    error_code: str = "INTERNAL_ERROR"
+
+    def __init__(self, message: str = "unexpected error") -> None:
+        super().__init__(message)
+        self.message = message
 
 
-class RoutineValidationError(ExpectedServiceError):
-    """루틴 유효성 검증 실패 예외"""
+# ============================================================
+# 비즈니스 로직 예외 (500)
+# ============================================================
+
+
+class RoutineValidationError(AppError):
+    """루틴 유효성 검증 실패 예외 - 500"""
+
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    error_code = "ROUTINE_VALIDATION_ERROR"
 
     def __init__(self, message: str, invalid_routines: list[int] | None = None) -> None:
         super().__init__(message)
         self.invalid_routines = invalid_routines or []
 
 
-class ConfigurationError(ExpectedServiceError):
+class ConfigurationError(AppError):
     """
-    config load 깨질 때 raise 하는 에러
+    서버 설정 오류 - 500
     - llm.yaml is missing or malformed
     - Provider configuration is invalid
     - Required environment variables missing
     """
 
-    pass
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    error_code = "CONFIGURATION_ERROR"
 
 
-class DependencyNotReadyError(ExpectedServiceError):
+# ============================================================
+# 의존 서비스 예외 (503)
+# ============================================================
+
+
+class DependencyNotReadyError(AppError):
     """
-    DI 구현 전 에러
+    의존 서비스 준비 안됨 - 503
     - DI functions are not implemented
     - External service is unavailable at startup
     """
 
-    pass
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    error_code = "DEPENDENCY_NOT_READY"
 
 
-class ServiceUnavailableError(Exception):
-    """503 - 핵심 의존 서비스 사용 불가"""
+class ServiceUnavailableError(AppError):
+    """핵심 의존 서비스 사용 불가 - 503"""
 
-    pass
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    error_code = "SERVICE_UNAVAILABLE"
+
+
+# ============================================================
+# 전역 예외 핸들러
+# ============================================================
+
+
+async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    """
+    AppError 및 하위 예외 처리
+    - LLMError, ConfigurationError, RoutineValidationError 등 모두 처리
+    """
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=ErrorResponse(
+            code=exc.error_code,
+            errors=[ErrorDetail(reason=exc.message)],
+        ).model_dump(exclude_none=True),
+    )
 
 
 async def service_unavailable_handler(

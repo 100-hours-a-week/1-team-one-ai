@@ -120,7 +120,7 @@ class ExerciseRepository:
         # 캐싱
         self._exercises = exercises
         self._exercise_ids = frozenset(ex.exerciseId for ex in exercises)
-        self._raw_data = data
+        self._raw_data = [ex.model_dump(by_alias=True) for ex in exercises]
         self._loaded = True
 
         logger.info(

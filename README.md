@@ -125,7 +125,7 @@ curl http://localhost:8000/api/v1/health
             "reason": "아침 워밍업 루틴으로 목 건강을 최우선으로 고려하여 허리와 어깨를 보조적으로 구성했어요.",
             "steps": [
                 {
-                    "exerciseId": "001",
+                    "id": "001",
                     "type": "DURATION",
                     "stepOrder": 1,
                     "limitTime": 30,
@@ -133,7 +133,7 @@ curl http://localhost:8000/api/v1/health
                     "targetReps": null
                 },
                 {
-                    "exerciseId": "002",
+                    "id": "002",
                     "type": "REPS",
                     "stepOrder": 2,
                     "limitTime": 30,

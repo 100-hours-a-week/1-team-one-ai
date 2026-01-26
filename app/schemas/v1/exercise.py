@@ -37,9 +37,9 @@ class Exercise(BaseModel):
     - 추천, 루틴, 사용자 맥락과 분리된 '순수 운동 정의'
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="ignore", populate_by_name=True)
 
-    exerciseId: str = Field(..., description="운동 고유 ID")
+    exerciseId: str = Field(..., alias="id", description="운동 고유 ID")
     name: str = Field(..., description="운동 이름")
     content: str = Field(..., description="운동 수행 방법 설명")
     effect: str = Field(..., description="운동 효과 설명")

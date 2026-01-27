@@ -1,0 +1,48 @@
+{
+    "routines": [
+        {
+            "routineOrder": 1,
+            "reason": "목 통증 완화를 위한 스트레칭 루틴",
+            "steps": [
+                {
+                    "exerciseId": 1,
+                    "type": "DURATION",
+                    "stepOrder": 1,
+                    "limitTime": 60,
+                    "durationTime": 30,
+                    "targetReps": null
+                },
+                {
+                    "exerciseId": 2,
+                    "type": "DURATION",
+                    "stepOrder": 2,
+                    "limitTime": 60,
+                    "durationTime": 30,
+                    "targetReps": null
+                }
+            ]
+        },
+        {
+            "routineOrder": 2,
+            "reason": "어깨 이완을 위한 운동 루틴",
+            "steps": [
+                {
+                    "exerciseId": 5,
+                    "type": "REPS",
+                    "stepOrder": 1,
+                    "limitTime": 45,
+                    "durationTime": null,
+                    "targetReps": 10
+                },
+                {
+                    "exerciseId": 6,
+                    "type": "REPS",
+                    "stepOrder": 2,
+                    "limitTime": 45,
+                    "durationTime": null,
+                    "targetReps": 8
+                }
+            ]
+        }
+    ]
+}

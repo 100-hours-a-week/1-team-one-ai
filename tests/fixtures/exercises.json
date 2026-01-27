@@ -1,0 +1,102 @@
+[
+    {
+        "id": 1,
+        "name": "목 전굴 스트레칭",
+        "content": "의자에 앉아 천천히 고개를 아래로 숙여 10초간 유지합니다.",
+        "effect": "목 뒤쪽 근육 이완 및 긴장 완화",
+        "type": "DURATION",
+        "bodyPart": "neck",
+        "difficulty": 1,
+        "tags": "목통증,거북목,스트레칭"
+    },
+    {
+        "id": 2,
+        "name": "목 신전 스트레칭",
+        "content": "천장을 바라보듯 고개를 뒤로 젖혀 10초간 유지합니다.",
+        "effect": "목 앞쪽 근육 이완 및 자세 개선",
+        "type": "DURATION",
+        "bodyPart": "neck",
+        "difficulty": 1,
+        "tags": "목통증,자세교정"
+    },
+    {
+        "id": 3,
+        "name": "목 좌우 회전",
+        "content": "고개를 좌우로 천천히 돌리는 동작을 반복합니다.",
+        "effect": "경추 가동성 향상",
+        "type": "REPS",
+        "bodyPart": "neck",
+        "difficulty": 1,
+        "tags": "목유연성,경추"
+    },
+    {
+        "id": 4,
+        "name": "목 측굴 스트레칭",
+        "content": "귀가 어깨에 닿도록 고개를 옆으로 기울여 유지합니다.",
+        "effect": "목 측면 근육 이완",
+        "type": "DURATION",
+        "bodyPart": "neck",
+        "difficulty": 2,
+        "tags": "목스트레칭,긴장완화"
+    },
+    {
+        "id": 5,
+        "name": "어깨 으쓱이기",
+        "content": "어깨를 귀 쪽으로 끌어올렸다가 내립니다.",
+        "effect": "승모근 긴장 완화",
+        "type": "REPS",
+        "bodyPart": "shoulder",
+        "difficulty": 1,
+        "tags": "어깨결림,승모근"
+    },
+    {
+        "id": 6,
+        "name": "어깨 원 그리기",
+        "content": "어깨로 천천히 큰 원을 그립니다.",
+        "effect": "어깨 관절 가동성 증가",
+        "type": "REPS",
+        "bodyPart": "shoulder",
+        "difficulty": 1,
+        "tags": "어깨관절,가동성"
+    },
+    {
+        "id": 7,
+        "name": "어깨 후인 스트레칭",
+        "content": "양쪽 견갑을 뒤로 모아 10초간 유지합니다.",
+        "effect": "굽은 어깨 교정",
+        "type": "DURATION",
+        "bodyPart": "shoulder",
+        "difficulty": 2,
+        "tags": "라운드숄더,자세교정"
+    },
+    {
+        "id": 8,
+        "name": "어깨 전면 스트레칭",
+        "content": "팔을 뒤로 뻗어 가슴을 열어줍니다.",
+        "effect": "어깨 앞쪽 근육 이완",
+        "type": "DURATION",
+        "bodyPart": "shoulder",
+        "difficulty": 2,
+        "tags": "어깨통증,스트레칭"
+    },
+    {
+        "id": 9,
+        "name": "손목 굴곡 스트레칭",
+        "content": "한 손으로 반대 손 손가락을 당겨 손목을 늘립니다.",
+        "effect": "손목 굴곡근 이완",
+        "type": "DURATION",
+        "bodyPart": "wrist",
+        "difficulty": 1,
+        "tags": "손목통증,타이핑"
+    },
+    {
+        "id": 10,
+        "name": "손목 신전 스트레칭",
+        "content": "손바닥을 아래로 향해 손목을 늘립니다.",
+        "effect": "손목 신전근 피로 완화",
+        "type": "DURATION",
+        "bodyPart": "wrist",
+        "difficulty": 1,
+        "tags": "손목피로,마우스사용"
+    }
+]

@@ -1,12 +1,16 @@
 .vscode/
+.DS_Store
 .venv/
 .ruff_cache/
 __pycache__/
+/pytest_cache/
 .env
+logs/
+
 app/api/v2/
 app/api/v3/
 app/schemas/v2
 examples/
 scripts/
-tests/test_dataset.py
+tests/pilot/
 CLAUDE.md

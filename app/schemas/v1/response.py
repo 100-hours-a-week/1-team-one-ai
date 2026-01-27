@@ -1,8 +1,24 @@
+# app/schemas/v1/response.py
+"""
+사용자 응답 데이터 스키마
+- class TaskStatus(str, Enum)
+- class ProgressStep(str, Enum)
+    - PROGRESS_STEP_PERCENTAGE
+- class ExerciseType(str, Enum)
+- class RoutineStep(BaseModel)
+- class Routine(BaseModel)
+- class RecommendationSummary(BaseModel)
+- class LLMRoutineOutput(BaseModel)
+- class RecommendationResponseV1(BaseModel)
+"""
+
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from app.schemas.common import ExerciseType
 
 
 class TaskStatus(str, Enum):
@@ -41,17 +57,12 @@ PROGRESS_STEP_PERCENTAGE: dict[ProgressStep, int] = {
 }
 
 
-class ExerciseType(str, Enum):
-    REPS = "REPS"
-    DURATION = "DURATION"
-
-
 class RoutineStep(BaseModel):
     """
     루틴 내 단일 운동 스텝
     """
 
-    exerciseId: str = Field(..., description="운동 ID")
+    exerciseId: int = Field(..., description="운동 ID")
     type: ExerciseType = Field(..., description="운동 수행 방식")
     stepOrder: int = Field(..., ge=1, description="루틴 내 순서")
 
@@ -62,6 +73,22 @@ class RoutineStep(BaseModel):
     targetReps: Optional[int] = Field(
         None, ge=0, description="횟수 기반 운동일 경우 목표 반복 횟수"
     )
+
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def check_exercise_type_fields(self) -> "RoutineStep":
+        if self.type == ExerciseType.REPS:
+            if self.targetReps is None:
+                raise ValueError("REPS 타입 운동은 targetReps가 필수입니다.")
+            if self.durationTime is not None:
+                raise ValueError("REPS 타입 운동은 durationTime을 가질 수 없습니다.")
+        elif self.type == ExerciseType.DURATION:
+            if self.durationTime is None:
+                raise ValueError("DURATION 타입 운동은 durationTime이 필수입니다.")
+            if self.targetReps is not None:
+                raise ValueError("DURATION 타입 운동은 targetReps를 가질 수 없습니다.")
+        return self
 
 
 class Routine(BaseModel):
@@ -74,6 +101,12 @@ class Routine(BaseModel):
 
     steps: List[RoutineStep] = Field(..., description="루틴에 포함된 운동 스텝 목록")
 
+    @model_validator(mode="after")
+    def check_steps_not_empty(self) -> "Routine":
+        if not self.steps:
+            raise ValueError("루틴은 최소 1개 이상의 step을 포함해야 합니다.")
+        return self
+
 
 class RecommendationSummary(BaseModel):
     """
@@ -83,6 +116,12 @@ class RecommendationSummary(BaseModel):
 
     totalRoutines: int = Field(..., ge=0, description="추천된 루틴 개수")
     totalExercises: int = Field(..., ge=0, description="전체 운동 개수")
+
+
+class LLMRoutineOutput(BaseModel):
+    """LLM이 출력하는 JSON 구조"""
+
+    routines: List[Routine]
 
 
 class RecommendationResponseV1(BaseModel):
@@ -105,3 +144,12 @@ class RecommendationResponseV1(BaseModel):
     completedAt: Optional[datetime] = Field(None, description="태스크 완료 시각 (UTC)")
 
     routines: Optional[List[Routine]] = Field(None, description="추천된 루틴 목록 (완료 시 제공)")
+
+    @model_validator(mode="after")
+    def check_completed_status_fields(self) -> "RecommendationResponseV1":
+        if self.status == TaskStatus.COMPLETED:
+            if self.summary is None:
+                raise ValueError("COMPLETED 상태에서는 summary가 필수입니다.")
+            if self.routines is None:
+                raise ValueError("COMPLETED 상태에서는 routines가 필수입니다.")
+        return self

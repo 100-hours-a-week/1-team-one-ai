@@ -5,30 +5,34 @@
 ## 요구사항
 
 - Python 3.11.x
+- [uv](https://docs.astral.sh/uv/) (패키지 매니저)
 - Docker (배포 시)
 
 ## 로컬 실행
 
 ```bash
 # 의존성 설치
-pip install -r requirements.txt
+uv sync
 
 # 환경변수 설정
 cp .env.example .env
 
 # 서버 실행
-uvicorn app.main:app --host 0.0.0.0 --port 8000 # --reload
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 # --reload
 ```
 
 ## 환경변수
 
-| 변수 | 설명 | 기본값 |
-|------|------|--------|
-| `HOST` | 서버 호스트 | `0.0.0.0` |
-| `PORT` | 서버 포트 | `8000` |
-| `OPENAI_API_KEY` | OPENAI API 키 | - |
-| `GEMINI_API_KEY` | GEMINI API 키 | - |
-| `OLLAMA_API_KEY` | OLLAMA API 키 | - |
+| 변수 | 설명 | 기본값 | 필수 |
+|-----|-----|------|-----|
+| `HOST` | 서버 호스트 | `0.0.0.0` | X |
+| `PORT` | 서버 포트 | `8000` | X |
+| `OPENAI_API_KEY` | OPENAI API 키 | - | X |
+| `GEMINI_API_KEY` | GEMINI API 키 | - | X |
+| `OLLAMA_API_KEY` | OLLAMA API 키 | - | O |
+| `EXERCISE_API_URL` | 운동 데이터 API URL | - | X |
+| `EXERCISES_PATH` | exercises.json 저장 경로 | `app/data/exercises.json` | X |
+
 
 ## API 엔드포인트
 
@@ -37,14 +41,37 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 # --reload
 | `GET` | `/` | 헬스체크 |
 | `GET` | `/api/v1/health` | 상세 헬스체크 |
 | `POST` | `/api/v1/routines` | 운동 루틴 추천 |
+| `POST` | `/api/v1/exercises/update` | 운동 데이터 강제 업데이트 |
 
 
-## 헬스체크
+## GET /api/v1/health
+상세 헬스체크
 
 ```bash
 curl http://localhost:8000/api/v1/health
 ```
 
+
+## POST /api/v1/exercises/update
+운동 데이터 강제 업데이트 & 로드
+
+```bash
+curl -X POST http://localhost:8000/api/v1/exercises/update
+```
+
+### Response
+
+```json
+{
+    "status": "ok",
+    "count": 42
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | string | 처리 결과 (`ok`) |
+| `count` | int | 로드된 운동 데이터 개수 |
 
 
 ## POST /api/v1/routines
@@ -124,7 +151,7 @@ curl http://localhost:8000/api/v1/health
             "reason": "아침 워밍업 루틴으로 목 건강을 최우선으로 고려하여 허리와 어깨를 보조적으로 구성했어요.",
             "steps": [
                 {
-                    "exerciseId": "001",
+                    "id": "001",
                     "type": "DURATION",
                     "stepOrder": 1,
                     "limitTime": 30,
@@ -132,7 +159,7 @@ curl http://localhost:8000/api/v1/health
                     "targetReps": null
                 },
                 {
-                    "exerciseId": "002",
+                    "id": "002",
                     "type": "REPS",
                     "stepOrder": 2,
                     "limitTime": 30,
@@ -180,37 +207,3 @@ curl http://localhost:8000/api/v1/health
 | `IN_PROGRESS` | 60 | AI가 최적의 루틴 구성 중 |
 | `IN_PROGRESS` | 75 | 최종 추천 결과 검증 중 |
 | `COMPLETED` | 100 | 운동 플랜 추천 완료! |
-
-
-
-## 현재 프로젝트 구조
-
-```
-.
-├── .env.example              # 환경변수 템플릿
-├── .github/
-│   └── workflows/            # CI/CD 워크플로우
-├── README.md
-├── pyproject.toml            # 프로젝트 설정 (Ruff 등)
-├── requirements.txt          # Python 의존성
-│
-├── app/                      # FastAPI 애플리케이션
-│   ├── main.py               # 앱 엔트리포인트
-│   ├── api/
-│   │   └── v1/               # v1 API 라우터
-│   ├── configs/              # 설정 파일 (llm.yaml 등)
-│   ├── core/                 # 설정, 로깅, 예외
-│   ├── schemas/
-│   │   ├── common.py         # 공통 스키마
-│   │   └── v1/               # v1 Pydantic 모델
-│   ├── services/
-│   │   └── llm_clients/      # LLM 클라이언트
-│   └── utils/                # 유틸리티
-│
-├── examples/                 # 예시 데이터
-│   ├── exercises.json        # 운동 데이터
-│   └── users.json            # 사용자 설문 데이터
-│
-└── tests/                    # 테스트
-    └── conftest.py           # pytest fixture
-```

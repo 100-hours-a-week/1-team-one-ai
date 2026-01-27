@@ -1,3 +1,23 @@
+[project]
+name = "recommendation"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.128.0",
+    "httpx>=0.28.1",
+    "ollama>=0.6.1",
+    "openai>=2.15.0",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.12.0",
+    "python-dotenv>=1.2.1",
+    "qdrant-client>=1.16.2",
+    "sentence-transformers>=5.2.0",
+    "uvicorn[standard]>=0.40.0",
+]
+
+[project.optional-dependencies]
+dev = []
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
@@ -6,3 +26,19 @@ fix = true
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 ignore = ["E501"]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "ruff>=0.14.13",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+log_cli = true
+log_cli_level = "INFO"
+log_file = "logs/pytest.log"
+log_file_level = "INFO"
+log_file_format = "%(asctime)s - %(levelname)s - %(name)s - %(message)s"

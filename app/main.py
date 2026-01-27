@@ -44,17 +44,14 @@ app = FastAPI(
     version="1.0.0",
 )
 
+Instrumentator().instrument(app).expose(app)
+
 app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore
 app.add_exception_handler(AppError, app_error_handler)  # type: ignore  # AppError 하위 클래스 처리
 app.add_exception_handler(Exception, internal_exception_handler)  # 마지막: fallback
 
 
 app.include_router(v1_router, prefix="/api/v1")
-
-
-@app.on_event("startup")
-async def startup():
-    Instrumentator().instrument(app).expose(app)
 
 
 @app.get("/")

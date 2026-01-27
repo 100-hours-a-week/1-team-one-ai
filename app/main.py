@@ -2,6 +2,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import ValidationError
 
 from app.api.v1.router import router as v1_router
@@ -49,6 +50,11 @@ app.add_exception_handler(Exception, internal_exception_handler)  # 마지막: f
 
 
 app.include_router(v1_router, prefix="/api/v1")
+
+
+@app.on_event("startup")
+async def startup():
+    Instrumentator().instrument(app).expose(app)
 
 
 @app.get("/")

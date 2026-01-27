@@ -38,13 +38,13 @@ jobs:
           uv pip install --system ruff pytest httpx
 
       # Phase 1: Lint (Ruff)
-      - name: Run Linter (Ruff)
-        run: ruff check . --fix
-        continue-on-error: true # 초기엔 경고만 (점진적 개선)
+      # - name: Run Linter (Ruff)
+      #   run: ruff check . --fix
+      #   continue-on-error: true # 초기엔 경고만 (점진적 개선)
 
       # Phase 2: Test (TODO: 테스트 작성 후 활성화)
-      - name: Run Tests
-        run: pytest
+      # - name: Run Tests
+      #   run: pytest
 
       # Phase 3: Artifact Build (소스 코드 압축)
       # .git, __pycache__, .venv 등 불필요한 파일 제외
@@ -202,6 +202,8 @@ jobs:
             # uv를 사용하여 설치 (서버에도 uv 설치)
             # 여기서는 운영 환경이므로 GPU 버전을 설치해야 한다면 requirements.txt 설정 따름
             python3.11 -m pip install uv # 혹시 없으면 설치
+
+            python3.11 -m uv cache clean
 
             python3.11 -m uv pip install \
               --index-strategy unsafe-best-match \

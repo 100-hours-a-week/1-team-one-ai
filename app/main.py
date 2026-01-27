@@ -2,6 +2,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import ValidationError
 
 from app.api.v1.router import router as v1_router
@@ -42,6 +43,8 @@ app = FastAPI(
     title="Recommendation API",
     version="1.0.0",
 )
+
+Instrumentator().instrument(app).expose(app)
 
 app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore
 app.add_exception_handler(AppError, app_error_handler)  # type: ignore  # AppError 하위 클래스 처리

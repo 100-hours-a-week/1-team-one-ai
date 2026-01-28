@@ -5,7 +5,7 @@
     "content": "의자에 앉아 천천히 고개를 아래로 숙여 10초간 유지합니다.",
     "effect": "목 뒤쪽 근육 이완 및 긴장 완화",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "neck",
     "difficulty": 1,
     "tags": "목통증,거북목,스트레칭"
@@ -16,7 +16,7 @@
     "content": "천장을 바라보듯 고개를 뒤로 젖혀 10초간 유지합니다.",
     "effect": "목 앞쪽 근육 이완 및 자세 개선",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "neck",
     "difficulty": 1,
     "tags": "목통증,자세교정"
@@ -27,7 +27,7 @@
     "content": "고개를 좌우로 천천히 돌리는 동작을 반복합니다.",
     "effect": "경추 가동성 향상",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "neck",
     "difficulty": 1,
     "tags": "목유연성,경추"
@@ -38,7 +38,7 @@
     "content": "귀가 어깨에 닿도록 고개를 옆으로 기울여 유지합니다.",
     "effect": "목 측면 근육 이완",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "neck",
     "difficulty": 2,
     "tags": "목스트레칭,긴장완화"
@@ -49,7 +49,7 @@
     "content": "어깨를 귀 쪽으로 끌어올렸다가 내립니다.",
     "effect": "승모근 긴장 완화",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "shoulder",
     "difficulty": 1,
     "tags": "어깨결림,승모근"
@@ -60,7 +60,7 @@
     "content": "어깨로 천천히 큰 원을 그립니다.",
     "effect": "어깨 관절 가동성 증가",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "shoulder",
     "difficulty": 1,
     "tags": "어깨관절,가동성"
@@ -71,7 +71,7 @@
     "content": "양쪽 견갑을 뒤로 모아 10초간 유지합니다.",
     "effect": "굽은 어깨 교정",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "shoulder",
     "difficulty": 2,
     "tags": "라운드숄더,자세교정"
@@ -82,7 +82,7 @@
     "content": "팔을 뒤로 뻗어 가슴을 열어줍니다.",
     "effect": "어깨 앞쪽 근육 이완",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "shoulder",
     "difficulty": 2,
     "tags": "어깨통증,스트레칭"
@@ -93,7 +93,7 @@
     "content": "한 손으로 반대 손 손가락을 당겨 손목을 늘립니다.",
     "effect": "손목 굴곡근 이완",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "wrist",
     "difficulty": 1,
     "tags": "손목통증,타이핑"
@@ -104,7 +104,7 @@
     "content": "손바닥을 아래로 향해 손목을 늘립니다.",
     "effect": "손목 신전근 피로 완화",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "wrist",
     "difficulty": 1,
     "tags": "손목피로,마우스사용"
@@ -115,7 +115,7 @@
     "content": "손목을 시계방향과 반대방향으로 돌립니다.",
     "effect": "손목 관절 윤활",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "wrist",
     "difficulty": 1,
     "tags": "손목유연성"
@@ -126,7 +126,7 @@
     "content": "손을 꽉 쥐었다가 천천히 펍니다.",
     "effect": "손과 손목 혈류 개선",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "wrist",
     "difficulty": 1,
     "tags": "혈액순환,손피로"
@@ -137,7 +137,7 @@
     "content": "상체를 앞으로 숙여 허리를 둥글게 만듭니다.",
     "effect": "요추 이완",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "lowerBack",
     "difficulty": 1,
     "tags": "허리통증,요추"
@@ -148,7 +148,7 @@
     "content": "가슴을 펴고 허리를 곧게 세웁니다.",
     "effect": "허리 자세 교정",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "lowerBack",
     "difficulty": 1,
     "tags": "허리자세,코어"
@@ -159,7 +159,7 @@
     "content": "상체를 좌우로 비틀어 줍니다.",
     "effect": "척추 회전 가동성 증가",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "lowerBack",
     "difficulty": 2,
     "tags": "척추,회전"
@@ -170,7 +170,7 @@
     "content": "골반을 앞뒤로 천천히 기울이는 동작을 반복합니다.",
     "effect": "요추 가동성 향상 및 허리 긴장 완화",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "lowerBack",
     "difficulty": 2,
     "tags": "허리통증,골반,요추"
@@ -181,7 +181,7 @@
     "content": "상체를 둥글게 말아 척추를 하나씩 움직입니다.",
     "effect": "척추 분절 움직임 개선",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "lowerBack",
     "difficulty": 2,
     "tags": "척추,유연성"
@@ -192,7 +192,7 @@
     "content": "등받이를 밀며 허리를 곧게 세워 유지합니다.",
     "effect": "허리 안정성 및 자세 유지 능력 강화",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "lowerBack",
     "difficulty": 2,
     "tags": "자세교정,코어"
@@ -203,7 +203,7 @@
     "content": "턱을 당겼다가 풀어주는 동작을 반복합니다.",
     "effect": "거북목 완화 및 심부 경추 근육 활성",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "neck",
     "difficulty": 1,
     "tags": "거북목,목자세"
@@ -214,7 +214,7 @@
     "content": "턱을 살짝 당긴 상태를 유지합니다.",
     "effect": "목 정렬 개선",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "neck",
     "difficulty": 2,
     "tags": "경추안정,자세교정"
@@ -225,7 +225,7 @@
     "content": "견갑을 아래·뒤로 당겼다가 풀어줍니다.",
     "effect": "어깨 안정성 향상",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "shoulder",
     "difficulty": 2,
     "tags": "견갑안정,어깨통증"
@@ -236,7 +236,7 @@
     "content": "어깨를 아래로 내린 상태를 유지합니다.",
     "effect": "승모근 과긴장 완화",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "shoulder",
     "difficulty": 2,
     "tags": "승모근,어깨결림"
@@ -247,7 +247,7 @@
     "content": "어깨를 앞뒤로 흔들어줍니다.",
     "effect": "어깨 순환 및 긴장 완화",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "shoulder",
     "difficulty": 1,
     "tags": "어깨순환"
@@ -258,7 +258,7 @@
     "content": "한 팔을 가슴 앞으로 당겨 늘립니다.",
     "effect": "어깨 뒤쪽 근육 이완",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "shoulder",
     "difficulty": 1,
     "tags": "어깨스트레칭"
@@ -269,7 +269,7 @@
     "content": "손목을 위아래로 천천히 움직입니다.",
     "effect": "손목 가동성 증가",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "wrist",
     "difficulty": 1,
     "tags": "손목유연성"
@@ -280,7 +280,7 @@
     "content": "손목을 좌우로 가볍게 흔듭니다.",
     "effect": "손목 긴장 완화",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "wrist",
     "difficulty": 1,
     "tags": "손목피로"
@@ -291,7 +291,7 @@
     "content": "손가락을 최대한 벌린 채 유지합니다.",
     "effect": "손 근육 활성 및 혈류 개선",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "wrist",
     "difficulty": 2,
     "tags": "손근육,혈액순환"
@@ -302,7 +302,7 @@
     "content": "손가락을 하나씩 접어 늘립니다.",
     "effect": "손가락 관절 유연성 증가",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "wrist",
     "difficulty": 2,
     "tags": "손가락,관절"
@@ -313,7 +313,7 @@
     "content": "배꼽을 등쪽으로 당겨 유지합니다.",
     "effect": "코어 활성 및 허리 안정",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "lowerBack",
     "difficulty": 2,
     "tags": "코어,허리안정"
@@ -324,7 +324,7 @@
     "content": "체중을 좌우 엉덩이로 번갈아 이동합니다.",
     "effect": "골반 균형 개선",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "lowerBack",
     "difficulty": 1,
     "tags": "골반균형"
@@ -335,7 +335,7 @@
     "content": "상체를 비튼 상태로 유지합니다.",
     "effect": "척추 회전 안정성 향상",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "lowerBack",
     "difficulty": 3,
     "tags": "척추회전,코어"
@@ -346,7 +346,7 @@
     "content": "고개로 작은 원을 그립니다.",
     "effect": "목 관절 전반 가동성 향상",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "neck",
     "difficulty": 2,
     "tags": "경추,유연성"
@@ -357,7 +357,7 @@
     "content": "목 힘을 빼고 호흡을 유지합니다.",
     "effect": "목 근육 이완",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "neck",
     "difficulty": 1,
     "tags": "호흡,이완"
@@ -368,7 +368,7 @@
     "content": "팔꿈치를 몸 쪽으로 당겨줍니다.",
     "effect": "어깨 안정 근육 활성",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "shoulder",
     "difficulty": 2,
     "tags": "어깨안정"
@@ -379,7 +379,7 @@
     "content": "어깨를 중립 위치로 고정해 유지합니다.",
     "effect": "어깨 위치 감각 향상",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "shoulder",
     "difficulty": 3,
     "tags": "어깨안정,자세"
@@ -390,7 +390,7 @@
     "content": "손목을 가볍게 눌렀다 풀어줍니다.",
     "effect": "손목 긴장 감소",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "wrist",
     "difficulty": 1,
     "tags": "손목이완"
@@ -401,7 +401,7 @@
     "content": "양 손바닥을 맞대고 밀어 유지합니다.",
     "effect": "손·팔 안정성 강화",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "wrist",
     "difficulty": 2,
     "tags": "손안정"
@@ -412,7 +412,7 @@
     "content": "허리를 곧게 세운 상태를 유지합니다.",
     "effect": "요추 정렬 개선",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "lowerBack",
     "difficulty": 1,
     "tags": "허리자세"
@@ -423,7 +423,7 @@
     "content": "허리를 좌우로 부드럽게 움직입니다.",
     "effect": "요추 긴장 완화",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "lowerBack",
     "difficulty": 1,
     "tags": "허리이완"
@@ -434,7 +434,7 @@
     "content": "고개를 기울이며 반대쪽 어깨를 내립니다.",
     "effect": "목·어깨 연결 부위 이완",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "neck",
     "difficulty": 2,
     "tags": "목어깨,스트레칭"
@@ -445,7 +445,7 @@
     "content": "어깨를 리듬감 있게 움직입니다.",
     "effect": "어깨 순환 촉진",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "shoulder",
     "difficulty": 1,
     "tags": "어깨순환"
@@ -456,7 +456,7 @@
     "content": "손목에 힘을 준 상태로 유지합니다.",
     "effect": "손목 안정 근육 강화",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "wrist",
     "difficulty": 3,
     "tags": "손목안정"
@@ -467,7 +467,7 @@
     "content": "손가락으로 책상을 두드립니다.",
     "effect": "손 신경 자극 및 순환",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "wrist",
     "difficulty": 1,
     "tags": "손신경,순환"
@@ -478,7 +478,7 @@
     "content": "머리를 천장 쪽으로 끌어올린 느낌을 유지합니다.",
     "effect": "척추 압박 감소",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "lowerBack",
     "difficulty": 2,
     "tags": "척추정렬"
@@ -489,7 +489,7 @@
     "content": "상체를 아주 작게 흔듭니다.",
     "effect": "전신 긴장 완화",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "lowerBack",
     "difficulty": 1,
     "tags": "이완,피로"
@@ -500,7 +500,7 @@
     "content": "목을 중립 위치로 고정해 유지합니다.",
     "effect": "경추 안정성 강화",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "neck",
     "difficulty": 3,
     "tags": "경추안정"
@@ -511,7 +511,7 @@
     "content": "어깨를 고정한 채 팔을 회전합니다.",
     "effect": "어깨 조절 능력 향상",
     "type": "REPS",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "shoulder",
     "difficulty": 3,
     "tags": "어깨컨트롤"
@@ -522,7 +522,7 @@
     "content": "손목을 약간 회전한 상태로 유지합니다.",
     "effect": "손목 안정성 강화",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "wrist",
     "difficulty": 3,
     "tags": "손목안정,재활"
@@ -533,7 +533,7 @@
     "content": "허리를 세운 상태에서 호흡을 유지합니다.",
     "effect": "허리 안정 및 피로 감소",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "lowerBack",
     "difficulty": 3,
     "tags": "허리안정,호흡"
@@ -544,7 +544,7 @@
     "content": "의자에 편안히 앉아 깊게 호흡하며 몸의 긴장을 풉니다.",
     "effect": "전신 피로 감소 및 이완",
     "type": "DURATION",
-    "pose": "{}",
+    "pose": {},
     "bodyPart": "neck",
     "difficulty": 1,
     "tags": "호흡,릴렉스,피로회복"

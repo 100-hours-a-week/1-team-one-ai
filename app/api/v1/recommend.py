@@ -19,6 +19,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends
 
 from app.configs.llm_config import llm_config
+from app.core.config import settings
 from app.core.exceptions import (
     # DependencyNotReadyError,
     AppError,
@@ -39,22 +40,20 @@ router = APIRouter()
 def get_recommend_service() -> RecommendService:
     """
     추천 서비스 인스턴스 생성 : RecommendService 의존성 주입 함수
-    TODO: 별도 PR에서 구현 예정
-    #
     """
 
     provider_name = llm_config.default_provider
     provider_config = llm_config.providers.get(provider_name)
 
     if provider_name == "openai":
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = settings.OPENAI_API_KEY
         llm_client = OpenAIClient(
             api_key=api_key,  # type: ignore
             model=provider_config.model,  # type: ignore
             default_timeout=provider_config.timeout_sec,  # type: ignore
         )
     elif provider_name == "ollama_cloud":
-        api_key = os.getenv("OLLAMA_API_KEY")
+        api_key = settings.OLLAMA_API_KEY
         llm_client = OllamaClient(
             api_key=api_key,  # type: ignore
             model=provider_config.model,  # type: ignore

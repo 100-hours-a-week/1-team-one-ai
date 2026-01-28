@@ -13,7 +13,6 @@ HTTP status:
 """
 
 import logging
-import os
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends

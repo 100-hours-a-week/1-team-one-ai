@@ -49,8 +49,8 @@ OUTPUT_SCHEMA = """\
           "exerciseId": "<int, Available Exercises에 존재하는 ID만 사용 가능>",
           "type": "<string, 해당 운동의 원본 type을 그대로 복사. REPS 또는 DURATION>",
           "stepOrder": <int, 루틴 내 운동 순서, 1부터 시작>,
-          "limitTime": <int, 이 스텝에 허용된 최대 시간(초), 예: 30~60>,
-          "durationTime": <int|null, type이 DURATION일 때 실제 수행 시간(초). REPS면 null>,
+          "limitTime": <int, 이 스텝에 허용된 최대 시간(초), 예: 50~60. type이 DURATION일 때는, pose.ReferencePose.totalDuration 보다 -20초.>,
+          "durationTime": <int, type이 DURATION일 때 실제 수행 시간(초). REPS이면 null>,
           "targetReps": <int|null, type이 REPS일 때 목표 반복 횟수. DURATION이면 null>
         }
       ]

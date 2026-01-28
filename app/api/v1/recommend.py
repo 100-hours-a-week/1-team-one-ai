@@ -58,6 +58,7 @@ def get_recommend_service() -> RecommendService:
         llm_client = OllamaClient(
             api_key=api_key,  # type: ignore
             model=provider_config.model,  # type: ignore
+            default_timeout=provider_config.timeout_sec,  # type: ignore
         )
     # elif provider_name == "gemini":
     #     llm_client = GeminiClient(api_key=$GEMINI_API_KEY, model=provider_config.model)
@@ -75,7 +76,7 @@ def get_response_builder() -> ResponseBuilder:
 
 
 @router.post("/routines", response_model=RecommendationResponseV1)
-async def recommend(
+def recommend(
     user_input: UserInputV1,
     service: RecommendService = Depends(get_recommend_service),
     builder: ResponseBuilder = Depends(get_response_builder),

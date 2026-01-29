@@ -17,7 +17,7 @@
                     "type": "REPS",
                     "stepOrder": 2,
                     "limitTime": 60,
-                    "durationTime": null,
+                    "durationTime": 40,
                     "targetReps": 10
                 }
             ]

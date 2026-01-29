@@ -99,7 +99,7 @@ class RecommendService:
             try:
                 raw_response = self._llm.generate(SYSTEM_PROMPT, user_prompt)
                 result = self._parse_response(raw_response)  # raise error
-                logger.info("LLM 추천 성공 (시도 %d/%d)", attempt + 1, self._max_retries + 1)
+                logger.info("LLM 추천 성공 (시도 %d/%d)", attempt + 1, self._max_retries)
                 return result
 
             except RETRYABLE_ERRORS as e:  # 재시도 가능한 에러 (LLMTimeoutError, LLMNetworkError, LLMInvalidResponseError)
@@ -107,7 +107,7 @@ class RecommendService:
                 logger.warning(
                     "LLM 호출 실패 (시도 %d/%d): %s",
                     attempt + 1,
-                    self._max_retries + 1,
+                    self._max_retries,
                     e,
                 )
                 continue
@@ -131,7 +131,7 @@ class RecommendService:
 
         # fallback 비활성화 시 에러 전파
         raise LLMInvalidResponseError(
-            f"LLM 추천 실패 (재시도 {self._max_retries + 1}회): {last_error}"
+            f"LLM 추천 실패 (재시도 {self._max_retries}회): {last_error}"
         ) from last_error
 
     def _build_prompt(self, survey: UserSurvey) -> str:

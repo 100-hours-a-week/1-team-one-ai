@@ -24,7 +24,7 @@ class ProviderConfig(BaseModel):
     base_url: str | None = None
     model: str
     timeout_sec: int = 30
-    retry: int = Field(default=2, ge=0, le=5)
+    max_tries: int = Field(default=2, ge=1, le=5)
 
 
 class LLMConfig(BaseModel):

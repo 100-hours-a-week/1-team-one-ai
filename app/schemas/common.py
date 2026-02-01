@@ -50,3 +50,10 @@ class ExerciseType(str, Enum):
 
     REPS = "REPS"
     DURATION = "DURATION"
+
+
+class Side(str, Enum):
+    """양측 운동 방향 (Bilateral Exercise)"""
+
+    LEFT = "left"
+    RIGHT = "right"

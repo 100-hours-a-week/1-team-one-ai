@@ -9,7 +9,8 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 기본 경로 상수
-_BASE_DIR = Path(__file__).parent.parent
+_BASE_DIR = Path(__file__).parent.parent  # app/
+_PROJECT_ROOT = _BASE_DIR.parent  # project root
 _DATA_DIR = _BASE_DIR / "data"
 _DEFAULT_EXERCISES_PATH = _DATA_DIR / "exercises.json"
 
@@ -29,7 +30,7 @@ class Settings(BaseSettings):
 
     # Logging
     LOG_LEVEL: str = "INFO"
-    LOG_DIR: Path = _BASE_DIR / "logs"
+    LOG_DIR: Path = _PROJECT_ROOT / "logs"
     LOG_FILE_NAME: str = "app.log"
     METRICS_ENABLED: bool = False
 

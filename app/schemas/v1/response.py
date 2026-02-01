@@ -18,7 +18,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.schemas.common import ExerciseType
+from app.schemas.common import ExerciseType, Side
 
 
 class TaskStatus(str, Enum):
@@ -63,6 +63,7 @@ class RoutineStep(BaseModel):
     """
 
     exerciseId: int = Field(..., description="운동 ID")
+    # name: str = Field(..., description="운동 이름")
     type: ExerciseType = Field(..., description="운동 수행 방식")
     stepOrder: int = Field(..., ge=1, description="루틴 내 순서")
 
@@ -73,6 +74,7 @@ class RoutineStep(BaseModel):
     targetReps: Optional[int] = Field(
         None, ge=0, description="횟수 기반 운동일 경우 목표 반복 횟수"
     )
+    side: Optional[Side] = Field(None, description="양측 운동의 경우 방향 (왼쪽/오른쪽)")
 
     model_config = ConfigDict(extra="forbid")
 

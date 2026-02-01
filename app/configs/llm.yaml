@@ -8,7 +8,7 @@ providers:
     base_url: https://api.openai.com/v1
     model: gpt-4.1-mini
     timeout_sec: 30
-    retry: 1
+    max_tries: 1
 
   ollama_cloud:
     spec: openai_compatible
@@ -16,21 +16,21 @@ providers:
     base_url: https://ollama.com
     model: gpt-oss:20b-cloud
     timeout_sec: 30
-    retry: 1
+    max_tries: 1
 
   gemini:
     spec: gemini_native
     auth: api_key
     model: gemini-2.5-flash
     timeout_sec: 30
-    retry: 2
+    max_tries: 1
 
   self_hosted:
     spec: openai_compatible
     auth: none
-    base_url: 
+    base_url:
     model: gemma3:12b
-    timeout_sec: 50
-    retry: 3
+    timeout_sec: 30
+    max_tries: 1
 
 fallback: true

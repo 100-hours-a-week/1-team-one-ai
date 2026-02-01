@@ -60,11 +60,17 @@ class RecommendService:
             if provider_config is None:
                 raise ConfigurationError(f"LLM 프로바이더 '{provider_name}'가 설정에 없습니다.")
 
-            self._max_retries = provider_config.retry
+            self._max_tries = provider_config.max_tries
             self._fallback_enabled = llm_config.fallback
 
         except (KeyError, AttributeError) as e:
             raise ConfigurationError(f"LLM 설정 접근 오류: {e}") from e
+
+        logger.debug(
+            "RecommendService 초기화: max_tries=%d, fallback=%s",
+            self._max_tries,
+            self._fallback_enabled,
+        )
 
         # rule-based recommender (lazy init 일단은 보류)
         if self._fallback_enabled:
@@ -80,7 +86,7 @@ class RecommendService:
 
     def recommend_routines(self, survey: UserSurvey) -> LLMRoutineOutput:
         """
-        설문 데이터를 기반으로 운동 루틴 추천.
+        설문 데이터를 기반으로 운동 루틴 추천 - LLM 기반 추천 (재시도 포함)
 
         Args:
         - survey: 사용자 설문 데이터
@@ -89,25 +95,25 @@ class RecommendService:
         - LLMRoutineOutput: 추천된 루틴 목록
 
         Raises:
-        - LLMError: LLM 호출 실패 (fallback 비활성화 시)
+        - LLMError: LLM 호출 실패
         """
         user_prompt = self._build_prompt(survey)
         last_error: Exception | None = None
 
         # LLM 호출 (재시도 포함)
-        for attempt in range(self._max_retries + 1):
+        for attempt in range(self._max_tries):
             try:
                 raw_response = self._llm.generate(SYSTEM_PROMPT, user_prompt)
                 result = self._parse_response(raw_response)  # raise error
-                logger.info("LLM 추천 성공 (시도 %d/%d)", attempt + 1, self._max_retries)
+                logger.info("LLM 추천 성공 (시도 %d/%d)", attempt + 1, self._max_tries)
                 return result
 
             except RETRYABLE_ERRORS as e:  # 재시도 가능한 에러 (LLMTimeoutError, LLMNetworkError, LLMInvalidResponseError)
                 last_error = e
                 logger.warning(
-                    "LLM 호출 실패 (시도 %d/%d): %s",
+                    "LLM 호출 실패, 재시도... (시도 %d/%d): %s",
                     attempt + 1,
-                    self._max_retries,
+                    self._max_tries,
                     e,
                 )
                 continue
@@ -117,10 +123,10 @@ class RecommendService:
                 logger.error("LLM 호출 실패 (재시도 불가): %s", e)
                 break
 
-        # 모든 재시도 실패 → fallback
+        # 모든 시도 실패 → fallback
         logger.warning(
-            "LLM 모든 재시도 실패 (%d회), fallback_enabled=%s",
-            self._max_retries,
+            "LLM 모든 시도 실패 (%d회), fallback_enabled=%s",
+            self._max_tries,
             self._fallback_enabled,
         )
 
@@ -131,7 +137,7 @@ class RecommendService:
 
         # fallback 비활성화 시 에러 전파
         raise LLMInvalidResponseError(
-            f"LLM 추천 실패 (재시도 {self._max_retries}회): {last_error}"
+            f"LLM 추천 실패 (시도 {self._max_tries}회): {last_error}"
         ) from last_error
 
     def _build_prompt(self, survey: UserSurvey) -> str:
@@ -150,7 +156,7 @@ class RecommendService:
             return LLMRoutineOutput.model_validate(data)
 
         except json.JSONDecodeError as e:
-            raise LLMInvalidResponseError(f"JSON 파싱 실패: {e}") from e
+            raise LLMInvalidResponseError(f"LLM 응답 - JSON 파싱 실패: {e}") from e
 
         except ValidationError as e:
-            raise LLMInvalidResponseError(f"스키마 검증 실패: {e}") from e
+            raise LLMInvalidResponseError(f"LLM 응답 - 스키마 정합성 검증 실패: {e}") from e

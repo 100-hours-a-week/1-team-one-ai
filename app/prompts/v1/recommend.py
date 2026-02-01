@@ -32,10 +32,39 @@ You are an exercise routine recommendation assistant.
 5. If type is REPS: set targetReps (count), set durationTime to null.
 6. Each routine must have 3-5 steps.
 
+## Pair Exercise Rule (MANDATORY)
+- If an exercise "name" contains "(왼쪽)" or "(오른쪽)":
+  - You MUST include the matching opposite side exercise in the SAME routine.
+  - Both sides must be included exactly once.
+  - The two paired exercises should be placed consecutively in stepOrder.
+- Never include only one side of a left/right pair.
+
+## Reason Writing Rules (VERY IMPORTANT)
+- The "reason" field is user-facing text.
+- Write in a friendly, natural Korean tone, as if explaining kindly to a real person.
+- DO NOT include:
+  - Survey scores (e.g. 4/5, 2/5)
+  - Numeric ratings
+  - System-like or analytical expressions
+- Instead:
+  - Paraphrase survey results into everyday language.
+  - Focus on how the routine helps the user feel more comfortable, relaxed, or balanced.
+  - Use cause-effect explanations that sound human, not diagnostic.
+
+### Bad examples (DO NOT DO THIS)
+- "목 통증이 4/5이므로..."
+- "허리 통증 점수가 높아..."
+
+### Good examples (STYLE GUIDE ONLY)
+- "목과 어깨에 부담이 쌓이기 쉬운 생활 패턴을 고려해, 긴장을 부드럽게 풀어줄 수 있는 동작들로 구성했습니다."
+- "오래 앉아 있는 시간이 많아 몸이 굳기 쉬워, 자연스럽게 움직임을 회복하는 데 도움이 되는 스트레칭을 포함했습니다."
+
 ## Validation Checklist (self-check before output)
 - [ ] Every id exists in Available Exercises?
 - [ ] Every type matches the original exercise type?
 - [ ] DURATION exercises have durationTime, REPS exercises have targetReps?
+- [ ] All left/right exercises are included as complete pairs?
+- [ ] Reason contains NO numbers, NO survey scores, NO system-like phrasing?
 """
 
 OUTPUT_SCHEMA = """\
@@ -43,14 +72,14 @@ OUTPUT_SCHEMA = """\
   "routines": [
     {
       "routineOrder": <int, 루틴 순서, 1부터 시작>,
-      "reason": "<string, 한국어, 이 루틴을 추천한 이유, 사용자 설문과 연관지어 설명>",
+      "reason": "<string, 한국어, 이 루틴을 추천한 이유, 사용자 설문과 연관지어 설명, 사용자에게 친화적인 설명. 점수·수치·시스템적 표현 금지>",
       "steps": [
         {
           "exerciseId": "<int, Available Exercises에 존재하는 ID만 사용 가능>",
           "type": "<string, 해당 운동의 원본 type을 그대로 복사. REPS 또는 DURATION>",
           "stepOrder": <int, 루틴 내 운동 순서, 1부터 시작>,
-          "limitTime": <int, 이 스텝에 허용된 최대 시간(초), 예: 50~60. type이 DURATION일 때는, pose.ReferencePose.totalDuration 보다 -20초.>,
-          "durationTime": <int, type이 DURATION일 때 실제 수행 시간(초). REPS이면 null>,
+          "limitTime": <int, 이 스텝에 허용된 최대 시간(초), 예: 50~60. type이 DURATION일 때는, pose.ReferencePose.totalDuration 보다 +20초.>,
+          "durationTime": <int | null, type이 DURATION일 때 실제 수행 시간(초). REPS이면 null>,
           "targetReps": <int|null, type이 REPS일 때 목표 반복 횟수. DURATION이면 null>
         }
       ]
@@ -72,6 +101,11 @@ USER_PROMPT_TEMPLATE = """\
 {output_schema}
 
 Generate {routine_count} exercise routines based on the user survey.
+
+Important:
+- Follow the Pair Exercise Rule strictly.
+- Rewrite survey information into natural, user-friendly explanations when writing "reason".
+- Never expose survey scores or internal evaluation logic.
 
 ## Example
 {example}

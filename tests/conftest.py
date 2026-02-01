@@ -45,7 +45,9 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
             "failed": "✗",
             "skipped": "⊘",
         }.get(report.outcome, "?")
-        logger.info(f"  {status_icon} 테스트 함수 완료: {report.nodeid.split('::')[-1]} [{report.outcome}]")
+        logger.info(
+            f"  {status_icon} 테스트 함수 완료: {report.nodeid.split('::')[-1]} [{report.outcome}]"
+        )
 
 
 @pytest.fixture(scope="session")

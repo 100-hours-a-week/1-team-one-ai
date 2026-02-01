@@ -4,7 +4,8 @@
 .ruff_cache/
 __pycache__/
 /pytest_cache/
-.env
+.env.dev
+.env.live
 logs/
 
 app/api/v2/

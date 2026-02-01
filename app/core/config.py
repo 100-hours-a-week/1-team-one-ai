@@ -9,20 +9,39 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 기본 경로 상수
-_DATA_DIR = Path(__file__).parent.parent / "data"
+_BASE_DIR = Path(__file__).parent.parent
+_DATA_DIR = _BASE_DIR / "data"
 _DEFAULT_EXERCISES_PATH = _DATA_DIR / "exercises.json"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=[
+            ".env",
+            ".env.dev",
+            ".env.live",
+        ],
+        extra="ignore",
+    )
 
-    ENV: str = "dev"
+    # 환경 분기
+    APP_ENV: str = "dev"
 
+    # Logging
+    LOG_LEVEL: str = "INFO"
+    LOG_DIR: Path = _BASE_DIR / "logs"
+    LOG_FILE_NAME: str = "app.log"
+    METRICS_ENABLED: bool = False
+
+    # LLM Keys
     OPENAI_API_KEY: str | None = None
     GEMINI_API_KEY: str | None = None
     OLLAMA_API_KEY: str | None = None
 
     LLM_BASE_URL: str | None = None
+
+    # API Security
+    API_KEY: str | None = None
 
     # Exercise Data
     EXERCISE_API_URL: str = "https://dev.raisedeveloper.com/api/exercises"

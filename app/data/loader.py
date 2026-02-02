@@ -46,26 +46,26 @@ def fetch_and_save_exercises(
 
         data = response.json()
 
-        logger.info("운동 데이터 fetch 완료: %s", data["code"])
-
         if isinstance(data, dict):
             data = data.get("data")
 
             if isinstance(data, dict):
                 data = data["exercises"]  # list
             else:
-                raise ValueError("Invalid response format: 'data' is not a dict")
+                raise ValueError("Invalid response format: 'data'가 Dict 형식이 아닙니다.")
         else:
-            raise ValueError("Invalid response format: expected dict")
+            raise ValueError("Invalid response format: Response가 Dict 형식이 아닙니다.")
 
-    except httpx.RequestError:
-        raise
+    except httpx.RequestError as e:
+        raise Exception(f"운동 데이터 fetch 실패 (네트워크 오류): {e}") from e
 
-    except httpx.HTTPStatusError:
-        raise
+    except httpx.HTTPStatusError as e:
+        raise Exception(
+            f"운동 데이터 fetch 실패 (HTTP {e.response.status_code}): {e.response.text}"
+        ) from e
 
-    except (ValueError, json.JSONDecodeError):
-        raise
+    except (ValueError, json.JSONDecodeError) as e:
+        raise ValueError("운동 데이터 파싱 실패: %s", e) from e
 
     # 모든 검증을 통과한 경우에만 파일 저장
     path.parent.mkdir(parents=True, exist_ok=True)

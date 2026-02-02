@@ -23,14 +23,16 @@ setup_logging()
 # 2. 운동 데이터 로드 (settings.EXERCISE_API_URL 사용)
 try:
     fetch_and_save_exercises()
+    logger.info("운동 데이터 fetch 완료")
 
 except Exception as e:
-    logger.warning("운동 데이터 fetch 실패, 기존 exercises.json 사용: %s", e)
+    logger.warning("운동 데이터 fetch 실패: %s\n기존 exercises.json 사용...", e)
 
 # 3. 운동 데이터 검증
 try:
     exercise_repository.load()
     logger.info("운동 데이터 로드 완료: %d개", len(exercise_repository.exercise_ids))
+
 except FileNotFoundError as e:
     logger.error("exercises.json 파일 없음: %s", e)
 except ValidationError as e:

@@ -100,6 +100,7 @@ def recommend(
         - valid_exercise_ids
         - llm_client
     """
+    logger.info("추천 요청 수신: routineCount=%d", user_input.surveyData.routineCount)
 
     # taskId는 요청 진입 시점에 생성 (향후 비동기 처리 대비)
     task_id = uuid4().hex

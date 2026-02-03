@@ -4,6 +4,7 @@
 - class Settings(BaseSettings)
 """
 
+import os
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -15,13 +16,21 @@ _DATA_DIR = _BASE_DIR / "data"
 _DEFAULT_EXERCISES_PATH = _DATA_DIR / "exercises.json"
 
 
+def _get_env_file() -> list[str]:
+    """
+    APP_ENV 환경변수에 따라 적절한 env 파일 선택
+    - APP_ENV=dev → .env, .env.dev
+    - APP_ENV=live → .env, .env.live
+    - 기본값: dev
+    """
+    app_env = os.environ.get("APP_ENV", "dev").lower()
+    env_file = f".env.{app_env}"
+    return [".env", env_file]
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=[
-            ".env",
-            ".env.dev",
-            ".env.live",
-        ],
+        env_file=_get_env_file(),
         extra="ignore",
     )
 
@@ -64,3 +73,5 @@ class RoutineTimePolicy:
     MIN_TIME: int = 150  # 2분 30초
     MAX_TIME: int = 210  # 3분 30초
     TARGET_TIME: int = 180  # 3분
+    DEFAULT_DURATION_TIME: int = 10  # 10초
+    DEFAULT_TARGET_REPS: int = 10  # 10회

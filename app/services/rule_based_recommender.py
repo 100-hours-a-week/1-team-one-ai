@@ -31,6 +31,14 @@ KEYWORD_TO_BODY_PART: dict[str, BodyPart] = {
     "허리": BodyPart.LOWER_BACK,
 }
 
+# 부위 → 한글 이름 매핑
+BODY_PART_TO_KOREAN: dict[BodyPart, str] = {
+    BodyPart.NECK: "목",
+    BodyPart.SHOULDER: "어깨",
+    BodyPart.WRIST: "손목",
+    BodyPart.LOWER_BACK: "허리",
+}
+
 
 class RuleBasedRecommender:
     """
@@ -106,7 +114,10 @@ class RuleBasedRecommender:
                     scores[body_part] = max(scores.get(body_part, 0), score)
                     break
 
-        logger.debug("통증 점수 추출: %s", scores)
+        logger.debug(
+            "[RuleBased] 통증 점수 추출: %s",
+            {part.name: score for part, score in scores.items()},
+        )
         return scores
 
     def _create_step(self, exercise: Exercise, step_order: int) -> RoutineStep:
@@ -171,9 +182,17 @@ class RuleBasedRecommender:
         # 루틴 이유 생성
         if sorted_parts:
             top_part = sorted_parts[0][0]
-            reason = f"{top_part.value} 부위 집중 케어를 위한 루틴입니다."
+            part_name = BODY_PART_TO_KOREAN.get(top_part, top_part.value)
+            reason = f"{part_name} 부위 집중 케어를 위한 루틴입니다."
         else:
             reason = "전신 스트레칭을 위한 루틴입니다."
+
+        logger.debug(
+            "[RuleBased] 루틴 #%d 생성 완료 - 선택된 운동 IDs: %s, 총 시간: %d초",
+            routine_order,
+            [s.exerciseId for s in steps],
+            total_time,
+        )
 
         return Routine(
             routineOrder=routine_order,
@@ -306,4 +325,21 @@ class RuleBasedRecommender:
             len(routines),
             total_steps,
         )
+
+        # 첫 번째/두 번째 루틴 상세 출력 (디버깅용)
+        if routines:
+            first = routines[0]
+            logger.debug(
+                "[RuleBased] 루틴 #1 상세: reason='%s', exerciseIds=%s",
+                first.reason,
+                [s.exerciseId for s in first.steps],
+            )
+            if len(routines) > 1:
+                second = routines[1]
+                logger.debug(
+                    "[RuleBased] 루틴 #2 상세: reason='%s', exerciseIds=%s",
+                    second.reason,
+                    [s.exerciseId for s in second.steps],
+                )
+
         return LLMRoutineOutput(routines=routines)

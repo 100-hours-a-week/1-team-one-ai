@@ -9,6 +9,7 @@ RoutineStep 변환 유틸리티
 
 from typing import Optional
 
+from app.core.config import RoutineTimePolicy
 from app.schemas.common import ExerciseType, Side
 from app.schemas.v1.exercise import Exercise
 from app.schemas.v1.response import RoutineStep
@@ -80,7 +81,7 @@ def create_routinestep_from_exercise(
     Exercise → RoutineStep 변환
 
     운동 유형에 따라 기본값 적용:
-    - DURATION: durationTime=30, targetReps=None
+    - DURATION: durationTime=DEFAULT_DURATION_TIME, targetReps=None
     - REPS: durationTime=None, targetReps=10
 
     Args:
@@ -102,7 +103,9 @@ def create_routinestep_from_exercise(
             type=ex_type,
             stepOrder=step_order,
             limitTime=limit_time,
-            durationTime=duration_time if duration_time is not None else 30,
+            durationTime=duration_time
+            if duration_time is not None
+            else RoutineTimePolicy.DEFAULT_DURATION_TIME,
             targetReps=None,
             side=side,
         )
@@ -113,7 +116,9 @@ def create_routinestep_from_exercise(
             stepOrder=step_order,
             limitTime=limit_time,
             durationTime=None,
-            targetReps=target_reps if target_reps is not None else 10,
+            targetReps=target_reps
+            if target_reps is not None
+            else RoutineTimePolicy.DEFAULT_TARGET_REPS,
             side=side,
         )
 
@@ -121,13 +126,15 @@ def create_routinestep_from_exercise(
 def copy_routine_step(
     step: RoutineStep,
     step_order: Optional[int] = None,
+    duration_time: Optional[int] = None,
 ) -> RoutineStep:
     """
-    RoutineStep 복사 (stepOrder 변경 시 사용)
+    RoutineStep 복사 (stepOrder, durationTime 변경 시 사용)
 
     Args:
     - step: 복사할 RoutineStep
     - step_order: 새로운 stepOrder (None이면 기존 값 유지)
+    - duration_time: 새로운 durationTime (None이면 기존 값 유지)
 
     Returns:
     - 복사된 RoutineStep
@@ -137,7 +144,7 @@ def copy_routine_step(
         type=step.type,
         stepOrder=step_order if step_order is not None else step.stepOrder,
         limitTime=step.limitTime,
-        durationTime=step.durationTime,
+        durationTime=duration_time if duration_time is not None else step.durationTime,
         targetReps=step.targetReps,
         side=step.side,
     )

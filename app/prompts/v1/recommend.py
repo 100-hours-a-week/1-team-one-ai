@@ -28,7 +28,7 @@ You are an exercise routine recommendation assistant.
 1. Output ONLY valid JSON. No markdown, no comments, no extra text.
 2. Use ONLY id values from "Available Exercises". NEVER invent new IDs.
 3. Copy the "type" field exactly from the exercise data. Do NOT change REPS to DURATION or vice versa.
-4. If type is DURATION: set durationTime (seconds), set targetReps to null.
+4. If type is DURATION: set durationTime (seconds), set targetReps to null. Please refer to ReferencePose.totalDuration.
 5. If type is REPS: set targetReps (count), set durationTime to null.
 6. Each routine must have 3-5 steps.
 
@@ -79,7 +79,7 @@ OUTPUT_SCHEMA = """\
           "type": "<string, 해당 운동의 원본 type을 그대로 복사. REPS 또는 DURATION>",
           "stepOrder": <int, 루틴 내 운동 순서, 1부터 시작>,
           "limitTime": <int, 이 스텝에 허용된 최대 시간(초), 예: 50~60. type이 DURATION일 때는, pose.ReferencePose.totalDuration 보다 +20초.>,
-          "durationTime": <int | null, type이 DURATION일 때 실제 수행 시간(초). REPS이면 null>,
+          "durationTime": <int | null, type이 DURATION일 때 실제 수행 시간(초). ReferencePose.totalDuration과 동일해야 함. type이 REPS이면 null>,
           "targetReps": <int|null, type이 REPS일 때 목표 반복 횟수. DURATION이면 null>
         }
       ]

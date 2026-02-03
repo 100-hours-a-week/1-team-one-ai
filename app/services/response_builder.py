@@ -194,8 +194,9 @@ class ResponseBuilder:
         2. exerciseId 유효성 검증
         3. 그 exerciseId의 운동 데이터가 실제 정보와 일치하는지
         4. Bilateral Exercise Rule 준수 여부
-        5. limitTime 검증
-        6. stepOrder 연속성 검증
+        5. ReferencePose.totalDuration == RoutineStep.durationTime 검증 및 맞추기
+        6. limitTime 검증
+        7. stepOrder 연속성 검증
 
         Input:
         - routine: 검증할 루틴
@@ -223,10 +224,13 @@ class ResponseBuilder:
         # 4. Bilateral Exercise Rule 준수 여부 검증 및 보정 (+/-)
         fixed_steps = self._validate_bilateral_exercise_rule(steps, routine_order)
 
-        # 5. limitTime 총합 검증 및 조정 (+/-)
+        # 5. ReferencePose.totalDuration == RoutineStep.durationTime 검증 및 맞추기
+        fixed_steps = self._validate_duration_time(fixed_steps, routine_order)
+
+        # 6. limitTime 총합 검증 및 조정 (+/-)
         fixed_steps = self._validate_total_time(fixed_steps, routine_order)
 
-        # 6. stepOrder 재정렬 (1부터 연속)
+        # 7. stepOrder 재정렬 (1부터 연속)
         fixed_steps = self._reorder_steps(fixed_steps)
 
         # routineOrder 보정
@@ -412,6 +416,71 @@ class ResponseBuilder:
                 len(removed_exercise_ids),
                 removed_exercise_ids,
             )
+
+        return result_steps
+
+    def _validate_duration_time(
+        self, steps: list[RoutineStep], routine_order: int
+    ) -> list[RoutineStep]:
+        """
+        DURATION 타입 운동의 durationTime을 ReferencePose.totalDuration과 일치하도록 검증 및 보정.
+
+        Args:
+        - steps: 검증할 스텝 목록
+        - routine_order: 루틴 순서 (로깅용)
+
+        Returns:
+        - 보정된 스텝 목록
+
+        Raises:
+        - RoutineValidationError: 운동 정보가 없거나 pose가 없는 경우
+        """
+        result_steps: list[RoutineStep] = []
+
+        for step in steps:
+            # DURATION 타입이 아니면 그대로 추가
+            if step.type != ExerciseType.DURATION:
+                result_steps.append(step)
+                continue
+
+            exercise = self._exercise_by_id.get(step.exerciseId)
+            if exercise is None:
+                raise RoutineValidationError(
+                    f"루틴 {routine_order}: exerciseId {step.exerciseId}에 해당하는 운동 정보가 없습니다.",
+                    invalid_routines=[routine_order],
+                )
+
+            if not exercise.pose:
+                raise RoutineValidationError(
+                    f"루틴 {routine_order}: exerciseId {step.exerciseId}에 pose 정보가 없습니다.",
+                    invalid_routines=[routine_order],
+                )
+
+            # pose dict에서 첫 번째 ReferencePose의 totalDuration 가져오기
+            first_pose = next(iter(exercise.pose.values()), None)
+            if first_pose is None:
+                raise RoutineValidationError(
+                    f"루틴 {routine_order}: exerciseId {step.exerciseId}의 pose가 비어있습니다.",
+                    invalid_routines=[routine_order],
+                )
+
+            expected_duration = first_pose.totalDuration
+
+            # durationTime이 일치하면 그대로 추가
+            if step.durationTime == expected_duration:
+                result_steps.append(step)
+                continue
+
+            # durationTime 보정
+            logger.info(
+                "루틴 %d: exerciseId %d의 durationTime 보정 (%s → %d)",
+                routine_order,
+                step.exerciseId,
+                step.durationTime,
+                expected_duration,
+            )
+            corrected_step = copy_routine_step(step, duration_time=expected_duration)
+            result_steps.append(corrected_step)
 
         return result_steps
 

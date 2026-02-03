@@ -73,3 +73,5 @@ class RoutineTimePolicy:
     MIN_TIME: int = 150  # 2분 30초
     MAX_TIME: int = 210  # 3분 30초
     TARGET_TIME: int = 180  # 3분
+    DEFAULT_DURATION_TIME: int = 10  # 10초
+    DEFAULT_TARGET_REPS: int = 10  # 10회

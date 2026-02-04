@@ -1,0 +1,345 @@
+name: AI (FastAPI) CI/CD
+
+on:
+  pull_request:
+    types: [opened, synchronize, closed]
+    branches: [develop, main]
+
+jobs:
+  # =========================================================
+  # CI Job: 코드 검사, 테스트, 소스 코드 압축(Artifact 생성)
+  # =========================================================
+  ci:
+    if: github.event.action == 'opened' || github.event.action == 'synchronize'
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 코드 체크아웃
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Python 환경 설정 (3.11)
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      # 3. uv 설치
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      # 4. 의존성 설치 (CI용 - CPU PyTorch)
+      # CPU 버전으로 설치
+      - name: Install Dependencies
+        run: |
+          uv pip install --system \
+            --index-url https://download.pytorch.org/whl/cpu \
+            --extra-index-url https://pypi.org/simple \
+            -r requirements.txt
+          uv pip install --system ruff pytest httpx
+
+      # Phase 1: Lint (Ruff)
+      # - name: Run Linter (Ruff)
+      #   run: ruff check . --fix
+      #   continue-on-error: true # 초기엔 경고만 (점진적 개선)
+
+      # Phase 2: Test (TODO: 테스트 작성 후 활성화)
+      # - name: Run Tests
+      #   run: pytest
+
+      # Phase 3: Artifact Build (소스 코드 압축)
+      # .git, __pycache__, .venv 등 불필요한 파일 제외
+      - name: Zip Source Code
+        run: |
+          mkdir build
+          zip -r build/ai-app.zip . -x "*.git*" ".github*" ".venv*" "__pycache__*" "tests*" "notebooks*"
+
+      # Phase 4: Artifact Upload
+      - name: Upload Zip Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-app-${{ github.sha }}
+          path: build/ai-app.zip
+          retention-days: 14
+
+      #  현재 시간 구하기 (KST)
+      - name: Get Current Time
+        uses: 1466587594/get-current-time@v2
+        id: current-time
+        with:
+          format: 'YYYY-MM-DD HH:mm:ss'
+          utcOffset: "+09:00" # 한국 시간
+          timezone: 'Asia/Seoul'
+
+      # Phase 5: Discord 성공 알림
+      - name: Discord Notification - Success
+        if: success()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_EMBEDS: |
+            [{
+              "title": "✅ AI CI 성공",
+              "color": 5763719,
+              "fields": [
+                {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
+                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
+                {"name": "Triggered By", "value": "${{ github.actor }}", "inline": false},
+                {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
+                {"name": "Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "${{ steps.current-time.outputs.formattedTime }} KST"
+              }
+            }]
+        uses: Ilshidur/action-discord@0.4.0
+        with:
+          args: 'CI 파이프라인이 성공적으로 완료되었습니다. <@&${{ secrets.DISCORD_ROLE_AI }}>'
+
+      # Phase 5: Discord 실패 알림
+      - name: Discord Notification - Failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_EMBEDS: |
+            [{
+              "title": "🚨 AI CI 실패",
+              "color": 15548997,
+              "fields": [
+                {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
+                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
+                {"name": "Triggered By", "value": "${{ github.actor }}", "inline": false},
+                {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
+                {"name": "Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "${{ steps.current-time.outputs.formattedTime }} KST"
+              }
+            }]
+        uses: Ilshidur/action-discord@0.4.0
+        with:
+          args: 'CI 파이프라인 실행 중 오류가 발생했습니다. 로그를 확인해주세요. <@&${{ secrets.DISCORD_ROLE_AI_ONCALL }}>'
+ 
+  # =========================================================
+  # CD Job: 병합 시 배포
+  # =========================================================
+  cd:
+    if: github.event.pull_request.merged == true
+    # needs: ci
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write      # Git Tag 생성 및 Push를 위해 필수
+      actions: read        # Artifact 다운로드를 위해 필수
+      pull-requests: read  # PR 정보를 읽기 위해 필수
+
+    steps:
+      # 1. 태깅용 체크아웃
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. Artifact Download (CI에서 만든 zip 파일 다운로드)
+      - name: Download Zip artifact
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: ai-ci-cd.yml    # 현재 파일명
+          pr: ${{ github.event.pull_request.number }}
+          workflow_conclusion: success
+          name_is_regexp: true
+          name: "ai-app-.*"
+          path: ./artifacts
+
+      # 3. 타임스탬프로 파일명 변경
+      - name: Prepare Zip with timestamp
+        run: |
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          cd artifacts
+          cd $(ls -d ai-app-* | head -n 1)
+          ZIP_FILE=$(ls *.zip | head -n 1)
+          mv $ZIP_FILE ../../ai-app-${TIMESTAMP}.zip
+          cd ../..
+          echo "ZIP_FILENAME=ai-app-${TIMESTAMP}.zip" >> $GITHUB_ENV
+          echo "DEPLOY_TIMESTAMP=$TIMESTAMP" >> $GITHUB_ENV
+
+      # 4. 서버로 전송 (SCP)
+      - name: Transfer Zip to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ github.base_ref == 'main' && secrets.PROD_SERVER_HOST || secrets.DEV_SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          source: "ai-app-${{ env.DEPLOY_TIMESTAMP }}.zip" # 전송할 파일
+          target: "~/ai/release/"
+          strip_components: 0
+
+      # 5. 배포 실행 (SSH)
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ github.base_ref == 'main' && secrets.PROD_SERVER_HOST || secrets.DEV_SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            set -e
+
+            PROJECT_DIR="/home/ubuntu/ai"
+            RELEASE_DIR="$PROJECT_DIR/release"
+            NEW_RELEASE_DIR="$RELEASE_DIR/${{ env.DEPLOY_TIMESTAMP }}"
+            ZIP_FILE="$RELEASE_DIR/ai-app-${{ env.DEPLOY_TIMESTAMP }}.zip"
+            CURRENT_LINK="$PROJECT_DIR/current"
+            
+            echo "1. 압축 해제"
+            mkdir -p $NEW_RELEASE_DIR
+            unzip -q $ZIP_FILE -d $NEW_RELEASE_DIR
+            
+            echo "2. 의존성 업데이트 (서버 환경에 맞게 설치)"
+            # 서버에는 미리 venv가 만들어져 있다고 가정 (/home/ubuntu/ai/venv)
+            source $PROJECT_DIR/venv/bin/activate
+            
+            # uv를 사용하여 설치 (서버에도 uv 설치)
+            # 여기서는 운영 환경이므로 GPU 버전을 설치해야 한다면 requirements.txt 설정 따름
+            python3.11 -m pip install uv # 혹시 없으면 설치
+
+            python3.11 -m uv cache clean
+
+            python3.11 -m uv pip install \
+              --index-strategy unsafe-best-match \
+              --extra-index-url https://download.pytorch.org/whl/cpu \
+              -r $NEW_RELEASE_DIR/requirements.txt
+
+            echo "3. 심볼릭 링크 교체"
+            ln -sfn $NEW_RELEASE_DIR $CURRENT_LINK
+            
+            echo "4. 서비스 재시작"
+            # systemd 서비스 파일은 ExecStart=$PROJECT_DIR/venv/bin/uvicorn ... $PROJECT_DIR/current/main:app 형태여야 함
+            sudo systemctl restart ai-service
+            
+            echo "5. 상태 확인"
+            sudo systemctl status ai-service --no-pager
+            sleep 10
+
+      # 6. Health Check (Port 8000)
+      - name: Health Check
+        id: healthcheck
+        uses: appleboy/ssh-action@v1.0.0
+        # continue-on-error: true
+        with:
+          host: ${{ github.base_ref == 'main' && secrets.PROD_SERVER_HOST || secrets.DEV_SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            echo "6. Health Check..."
+            MAX_RETRY=10
+            RETRY_COUNT=0
+            
+            while [ $RETRY_COUNT -lt $MAX_RETRY ]; do
+              if curl -f -s http://localhost:8000/api/v1/health > /dev/null; then
+                echo "Health check passed!"
+                exit 0
+              fi
+              RETRY_COUNT=$((RETRY_COUNT+1))
+              sleep 10
+            done
+            
+            echo "Health check failed!"
+            # 로그를 출력하고 비정상 종료
+            journalctl -u ai-service -n 30 --no-pager
+            exit 1
+
+      # 7. 시맨틱 버저닝
+      - name: Create Semantic Version Tag
+        if: steps.healthcheck.outcome == 'success' && github.event.pull_request.base.ref == 'main'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 --match "ai-v*.*.*" 2>/dev/null || echo "ai-v0.0.0")
+          VERSION=${LATEST_TAG#ai-v}
+          MAJOR=$(echo $VERSION | cut -d. -f1)
+          MINOR=$(echo $VERSION | cut -d. -f2)
+          PATCH=$(echo $VERSION | cut -d. -f3)
+          PATCH=$((PATCH + 1))
+          NEW_VERSION="ai-v${MAJOR}.${MINOR}.${PATCH}"
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a $NEW_VERSION -m "AI Release $NEW_VERSION"
+          git push origin $NEW_VERSION
+          
+          echo "DEPLOY_TAG=$NEW_VERSION" >> $GITHUB_ENV
+
+      # 8. 오래된 배포 정리 (폴더 정리)
+      - name: Cleanup Old Releases
+        if: steps.healthcheck.outcome == 'success'
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ github.base_ref == 'main' && secrets.PROD_SERVER_HOST || secrets.DEV_SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd /home/ubuntu/ai/release
+            # 날짜순 정렬 후 최신 5개 제외하고 삭제 (폴더 기준)
+            ls -dt 20* | tail -n +6 | xargs -r rm -rf
+            # zip 파일도 정리
+            ls -t ai-app-*.zip | tail -n +6 | xargs -r rm -v
+
+      #  현재 시간 구하기 (KST)
+      - name: Get Current Time
+        uses: 1466587594/get-current-time@v2
+        id: current-time
+        with:
+          format: 'YYYY-MM-DD HH:mm:ss'
+          utcOffset: "+09:00" # 한국 시간
+          timezone: 'Asia/Seoul'
+
+      # 9. Discord 성공 알림
+      - name: Discord Notification - Success
+        if: success()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_EMBEDS: |
+            [{
+              "title": "✅ AI CD 성공", 
+              "color": 5763719,
+              "fields": [
+                {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
+                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
+                {"name": "Triggered By", "value": "${{ github.actor }}", "inline": false},
+                {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
+                {"name": "Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "${{ steps.current-time.outputs.formattedTime }} KST"
+              }
+            }]
+        uses: Ilshidur/action-discord@0.4.0
+        with:
+          args: 'CD 파이프라인이 성공적으로 완료되었습니다. <@&${{ secrets.DISCORD_ROLE_AI }}>'
+
+       # 10. Discord 실패 알림
+      - name: Discord Notification - Failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_EMBEDS: |
+            [{
+              "title": "🚨 AI CD 실패",
+              "color": 15548997,
+              "fields": [
+                {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
+                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
+                {"name": "Triggered By", "value": "${{ github.actor }}", "inline": false},
+                {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
+                {"name": "Actions Log", "value": "[Link to Action](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "${{ steps.current-time.outputs.formattedTime }} KST"
+              }
+            }]
+        uses: Ilshidur/action-discord@0.4.0
+        with:
+          args: 'CD 파이프라인 실행 중 오류가 발생했습니다. 로그를 확인해주세요. <@&${{ secrets.DISCORD_ROLE_AI_ONCALL }}>'

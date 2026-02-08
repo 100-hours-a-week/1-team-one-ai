@@ -20,6 +20,7 @@ class TaskData(BaseModel):
     """
 
     task_id: str
+    user_id: int
     status: TaskStatus = TaskStatus.IN_PROGRESS
     progress: int = 0
     current_step: str = "추천 요청 접수됨"

@@ -5,8 +5,9 @@ V2 추천 API (비동기 콜백 + 폴링)
 - GET  /routines/{task_id} : 추천 상태 조회 (폴링)
 
 교체 가능한 의존성 (get_* DI 함수만 수정하면 엔드포인트 코드 변경 불필요):
-- TaskStore    : get_task_store()    → InMemoryTaskStore / RedisTaskStore
-- TaskExecutor : get_task_executor() → BackgroundTaskExecutor / CeleryTaskExecutor
+- TaskStore         : get_task_store()         → InMemoryTaskStore / RedisTaskStore
+- TaskExecutor      : get_task_executor()      → BackgroundTaskExecutor / CeleryTaskExecutor
+- ColdStartChecker  : get_cold_start_checker() → DefaultColdStartChecker
 """
 
 import logging
@@ -20,6 +21,7 @@ from app.data.loader import exercise_repository
 from app.schemas.v2.request import UserInputV2
 from app.schemas.v2.response import TaskAcceptedResponse, TaskResult
 from app.services.callback_client import CallbackClient
+from app.services.cold_start_checker import ColdStartChecker, DefaultColdStartChecker
 from app.services.llm_clients.ollama_client import OllamaClient
 from app.services.llm_clients.openai_client import OpenAIClient
 from app.services.recommend_service import RecommendService
@@ -41,6 +43,8 @@ router = APIRouter()
 # TODO: Task Executor 교체: BackgroundTaskExecutor → CeleryTaskExecutor
 _task_store: TaskStore = InMemoryTaskStore()
 _callback_client = CallbackClient()
+# TODO: Cold Start 교체: DefaultColdStartChecker → 실제 구현체
+_cold_start_checker: ColdStartChecker = DefaultColdStartChecker()
 
 
 def _create_recommend_service() -> RecommendService:
@@ -88,6 +92,14 @@ def get_task_store() -> TaskStore:
     return _task_store
 
 
+def get_cold_start_checker() -> ColdStartChecker:
+    """
+    ColdStartChecker 의존성 주입
+    TODO: 사용자 프로필 기반 구현체로 교체 시 이 함수만 변경
+    """
+    return _cold_start_checker
+
+
 def get_task_service(
     store: TaskStore = Depends(get_task_store),
 ) -> TaskService:
@@ -97,6 +109,7 @@ def get_task_service(
         recommend_service=_recommend_service,
         response_builder=_response_builder,
         callback_client=_callback_client,
+        cold_start_checker=_cold_start_checker,
     )
 
 
@@ -139,8 +152,9 @@ def create_recommendation(
     """
 
     logger.info(
-        "V2 추천 요청 수신: taskId=%s, routineCount=%d",
+        "V2 추천 요청 수신: taskId=%s, userId=%d, routineCount=%d",
         user_input.taskId,
+        user_input.userId,
         user_input.surveyData.routineCount,
     )
 
@@ -150,12 +164,10 @@ def create_recommendation(
     except AppError:
         raise
     except Exception:
-        logger.exception(
-            "추천 요청 처리 중 예기치 않은 오류 [taskId=%s]", user_input.taskId
-        )
+        logger.exception("추천 요청 처리 중 예기치 않은 오류 [taskId=%s]", user_input.taskId)
         raise
 
-    return TaskAcceptedResponse(taskId=task.task_id)
+    return TaskAcceptedResponse(taskId=task.task_id, userId=task.user_id)
 
 
 @router.get("/routines/{task_id}", response_model=TaskResult)

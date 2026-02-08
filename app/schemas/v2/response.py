@@ -73,6 +73,7 @@ class TaskAcceptedResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     taskId: str = Field(..., description="추천 태스크 ID")
+    userId: int = Field(..., description="사용자 식별자")
     status: TaskStatus = Field(default=TaskStatus.IN_PROGRESS, description="태스크 상태")
     progress: int = Field(default=0, ge=0, le=100, description="진행률 (0~100)")
     currentStep: str = Field(default="추천 요청 접수됨", description="현재 처리 단계 설명")
@@ -93,6 +94,7 @@ class TaskResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     taskId: str = Field(..., description="추천 태스크 ID")
+    userId: int = Field(..., description="사용자 식별자")
     status: TaskStatus = Field(..., description="태스크 상태")
 
     progress: int = Field(..., ge=0, le=100, description="진행률 (0~100)")

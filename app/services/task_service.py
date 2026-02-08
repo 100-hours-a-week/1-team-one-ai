@@ -20,6 +20,7 @@ from app.schemas.v2.response import (
 )
 from app.schemas.v2.task import TaskData
 from app.services.callback_client import CallbackClient
+from app.services.cold_start_checker import ColdStartChecker
 from app.services.recommend_service import RecommendService
 from app.services.response_builder import ResponseBuilder
 from app.services.task_store import TaskStore
@@ -49,11 +50,13 @@ class TaskService:
         recommend_service: RecommendService,
         response_builder: ResponseBuilder,
         callback_client: CallbackClient,
+        cold_start_checker: ColdStartChecker,
     ) -> None:
         self._store = store
         self._recommend_service = recommend_service
         self._response_builder = response_builder
         self._callback_client = callback_client
+        self._cold_start_checker = cold_start_checker
 
     def create_task(self, user_input: UserInputV2) -> TaskData:
         """
@@ -67,11 +70,12 @@ class TaskService:
         """
         task = TaskData(
             task_id=user_input.taskId,
+            user_id=user_input.userId,
             request_data=user_input,
             created_at=datetime.now(UTC),
         )
         self._store.save(task)
-        logger.info("Task 생성: %s", task.task_id)
+        logger.info("Task 생성 [task_id=%s, user_id=%d]", task.task_id, task.user_id)
         return task
 
     def get_task_status(self, task_id: str) -> TaskResult | None:
@@ -91,6 +95,7 @@ class TaskService:
 
         return TaskResult(
             taskId=task.task_id,
+            userId=task.user_id,
             status=task.status,
             progress=task.progress,
             currentStep=task.current_step,
@@ -124,11 +129,37 @@ class TaskService:
             return
 
         survey = task.request_data.surveyData
+        user_id = task.user_id
 
         try:
-            # Step 1: LLM 추천
-            self._update_progress(task_id, ProgressStep.LLM_INFERENCE)
-            llm_output = self._recommend_service.recommend_routines(survey=survey)
+            # Cold start 판단
+            is_cold = self._cold_start_checker.is_cold_start(user_id)
+            logger.info(
+                "추천 시작 [task_id=%s, user_id=%d, cold_start=%s]",
+                task_id,
+                user_id,
+                is_cold,
+            )
+
+            if is_cold:
+                # Cold start: 설문 기반 추천 (현재 동작)
+                self._update_progress(task_id, ProgressStep.LLM_INFERENCE)
+                llm_output = self._recommend_service.recommend_routines(
+                    survey=survey, user_id=user_id
+                )
+            else:
+                # Non-cold start: 벡터 기반 개인화 추천 (미구현)
+                # TODO: VectorRecommendService 구현 후 교체
+                logger.info(
+                    "Non-cold start 경로 미구현, cold start 경로로 fallback "
+                    "[task_id=%s, user_id=%d]",
+                    task_id,
+                    user_id,
+                )
+                self._update_progress(task_id, ProgressStep.LLM_INFERENCE)
+                llm_output = self._recommend_service.recommend_routines(
+                    survey=survey, user_id=user_id
+                )
 
             # Step 2: 결과 검증 + 응답 빌드
             self._update_progress(task_id, ProgressStep.RESULT_VALIDATION)
@@ -138,6 +169,7 @@ class TaskService:
             now = datetime.now(UTC)
             result = TaskResult(
                 taskId=task_id,
+                userId=user_id,
                 status=TaskStatus.COMPLETED,
                 progress=PROGRESS_STEP_PERCENTAGE[ProgressStep.COMPLETED],
                 currentStep=ProgressStep.COMPLETED.value,
@@ -162,17 +194,19 @@ class TaskService:
                 result=result,
                 completed_at=now,
             )
-            logger.info("추천 완료 [task_id=%s]", task_id)
+            logger.info("추천 완료 [task_id=%s, user_id=%d]", task_id, user_id)
 
             # Step 4: 콜백 전송 (성공)
             self._send_callback(result)
 
         except AppError as e:
-            self._handle_failure(task_id, str(e))
+            self._handle_failure(task_id, str(e), user_id=user_id)
 
         except Exception as e:
-            logger.exception("예상치 못한 오류 [task_id=%s]", task_id)
-            self._handle_failure(task_id, f"unexpected error: {e}")
+            logger.exception(
+                "예상치 못한 오류 [task_id=%s, user_id=%d]", task_id, user_id
+            )
+            self._handle_failure(task_id, f"unexpected error: {e}", user_id=user_id)
 
     def _update_progress(self, task_id: str, step: ProgressStep) -> None:
         """진행 상태 업데이트"""
@@ -188,7 +222,9 @@ class TaskService:
             PROGRESS_STEP_PERCENTAGE[step],
         )
 
-    def _handle_failure(self, task_id: str, error_message: str) -> None:
+    def _handle_failure(
+        self, task_id: str, error_message: str, *, user_id: int
+    ) -> None:
         """실패 처리 + 콜백 전송"""
         now = datetime.now(UTC)
         self._store.update(
@@ -199,10 +235,13 @@ class TaskService:
             error_message=error_message,
             completed_at=now,
         )
-        logger.error("추천 실패 [task_id=%s]: %s", task_id, error_message)
+        logger.error(
+            "추천 실패 [task_id=%s, user_id=%d]: %s", task_id, user_id, error_message
+        )
 
         failure_result = TaskResult(
             taskId=task_id,
+            userId=user_id,
             status=TaskStatus.FAILED,
             progress=PROGRESS_STEP_PERCENTAGE[ProgressStep.FAILED],
             currentStep=ProgressStep.FAILED.value,

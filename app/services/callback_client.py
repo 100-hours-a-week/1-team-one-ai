@@ -38,8 +38,9 @@ class CallbackClient:
         callback_url = settings.CALLBACK_URL
         if not callback_url:
             logger.warning(
-                "CALLBACK_URL 미설정 - 콜백 전송 건너뜀 [task_id=%s]",
+                "CALLBACK_URL 미설정 - 콜백 전송 건너뜀 [task_id=%s, user_id=%d]",
                 payload.taskId,
+                payload.userId,
             )
             return False
 
@@ -55,8 +56,9 @@ class CallbackClient:
                 response.raise_for_status()
 
                 logger.info(
-                    "콜백 전송 성공 [task_id=%s, url=%s, status=%d]",
+                    "콜백 전송 성공 [task_id=%s, user_id=%d, url=%s, status=%d]",
                     payload.taskId,
+                    payload.userId,
                     callback_url,
                     response.status_code,
                 )
@@ -90,8 +92,9 @@ class CallbackClient:
                 )
 
         logger.error(
-            "콜백 전송 최종 실패 [task_id=%s, url=%s]",
+            "콜백 전송 최종 실패 [task_id=%s, user_id=%d, url=%s]",
             payload.taskId,
+            payload.userId,
             callback_url,
         )
         return False

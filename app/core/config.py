@@ -57,8 +57,23 @@ class Settings(BaseSettings):
     EXERCISE_API_URL: str = "https://dev.raisedeveloper.com/api/exercises"
     EXERCISES_PATH: Path = _DEFAULT_EXERCISES_PATH
 
+    # Callback
+    CALLBACK_URL: str | None = "https://dev.raisedeveloper.com/api/callback"
+
 
 settings = Settings()
+
+
+class CallbackPolicy:
+    """
+    콜백 전송 정책
+
+    - TIMEOUT_SEC: 콜백 HTTP 요청 타임아웃 (초)
+    - MAX_RETRIES: 최대 재시도 횟수 (초기 시도 제외)
+    """
+
+    TIMEOUT_SEC: int = 10
+    MAX_RETRIES: int = 1
 
 
 class RoutineTimePolicy:

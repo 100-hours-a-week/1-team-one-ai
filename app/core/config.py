@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "dev"
 
     # Logging
-    LOG_LEVEL: str = "INFO"
+    LOG_LEVEL: str = "DEBUG"
     LOG_DIR: Path = _PROJECT_ROOT / "logs"
     LOG_FILE_NAME: str = "app.log"
     METRICS_ENABLED: bool = False
@@ -54,11 +54,11 @@ class Settings(BaseSettings):
     API_KEY: str | None = None
 
     # Exercise Data
-    EXERCISE_API_URL: str = "https://dev.raisedeveloper.com/api/exercises"
+    EXERCISE_API_URL: str | None = None
     EXERCISES_PATH: Path = _DEFAULT_EXERCISES_PATH
 
     # Callback
-    CALLBACK_URL: str | None = "https://dev.raisedeveloper.com/api/callback"
+    CALLBACK_URL: str | None = None
 
 
 settings = Settings()

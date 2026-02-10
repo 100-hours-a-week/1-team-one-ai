@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def fetch_and_save_exercises(
-    url: str = settings.EXERCISE_API_URL,
+    url: str | None = settings.EXERCISE_API_URL,
     path: Path = settings.EXERCISES_PATH,
 ) -> None:
     """
@@ -36,6 +36,9 @@ def fetch_and_save_exercises(
     - ValueError: 잘못된 응답 형식
     - 일단은 다 raise error 하고 main에서 try/catch로 처리
     """
+    if not url:
+        raise ValueError("EXERCISE_API_URL이 설정되지 않았습니다.")
+
     try:
         response = httpx.get(
             url,

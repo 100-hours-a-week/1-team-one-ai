@@ -30,7 +30,8 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 # --reload
 | `OPENAI_API_KEY` | OPENAI API 키 | - | X |
 | `GEMINI_API_KEY` | GEMINI API 키 | - | X |
 | `OLLAMA_API_KEY` | OLLAMA API 키 | - | O |
-| `EXERCISE_API_URL` | 운동 데이터 API URL | - | X |
+| `CALLBACK_URL` | 추천 결과 Callback API URL | - | O (v2+) |
+| `EXERCISE_API_URL` | 운동 데이터 API URL | - | O |
 | `EXERCISES_PATH` | exercises.json 저장 경로 | `app/data/exercises.json` | X |
 
 
@@ -42,9 +43,11 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 # --reload
 | `GET` | `/api/v1/health` | 상세 헬스체크 |
 | `POST` | `/api/v1/routines` | 운동 루틴 추천 |
 | `POST` | `/api/v1/exercises/update` | 운동 데이터 강제 업데이트 |
+| `POST` | `/api/v2/routines` | 운동 루틴 추천 |
+| `POST` | `/api/v2/routines/{task_id}` | 운동 루틴 추천 폴백 |
 
 
-## GET /api/v1/health
+### GET /api/v1/health
 상세 헬스체크
 
 ```bash
@@ -52,14 +55,14 @@ curl http://localhost:8000/api/v1/health
 ```
 
 
-## POST /api/v1/exercises/update
+### POST /api/v1/exercises/update
 운동 데이터 강제 업데이트 & 로드
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/exercises/update
 ```
 
-### Response
+#### Response
 
 ```json
 {
@@ -74,11 +77,11 @@ curl -X POST http://localhost:8000/api/v1/exercises/update
 | `count` | int | 로드된 운동 데이터 개수 |
 
 
-## POST /api/v1/routines
+### POST /api/v1/routines
 
 사용자 설문 데이터를 기반으로 맞춤형 운동 루틴을 추천합니다.
 
-### Request Body
+#### Request Body
 
 <details>
 <summary>v1 Request</summary>
@@ -128,7 +131,7 @@ curl -X POST http://localhost:8000/api/v1/exercises/update
 | `surveyData.survey[].questionContent` | string | ✓ | 설문 문항 내용 |
 | `surveyData.survey[].selectedOptionSortOrder` | int | ✓ | 선택한 응답의 정렬 순서 (≥1, ≤5) |
 
-### Response Body
+#### Response Body
 
 <details>
 <summary>v1 Response</summary>
@@ -207,3 +210,101 @@ curl -X POST http://localhost:8000/api/v1/exercises/update
 | `IN_PROGRESS` | 60 | AI가 최적의 루틴 구성 중 |
 | `IN_PROGRESS` | 75 | 최종 추천 결과 검증 중 |
 | `COMPLETED` | 100 | 운동 플랜 추천 완료! |
+
+
+
+### POST /api/v2/routines
+
+사용자 설문 데이터를 기반으로 맞춤형 운동 루틴을 추천합니다.  
+v1과 달리 Callback / Polling으로 결과를 반환합니다.
+
+#### Request
+<details>
+<summary>v2 Request</summary>
+
+```json
+{
+    "taskId": "task-id-1234",
+    "userId": 1,
+    "surveyData": {
+        "routineCount": 4,
+        "survey": [
+            {
+                "questionContent": "최근 1주일 동안, 목 부위의 불편함이나 통증은 어느 정도였나요?",
+                "selectedOptionSortOrder": 4
+            },
+            {
+                "questionContent": "최근 1주일 동안, 어깨 부위에 뻐근함이나 통증을 느낀 정도는 어느 정도였나요?",
+                "selectedOptionSortOrder": 3
+            },
+            {
+                "questionContent": "최근 1주일 동안, 허리(요추) 부위의 불편함이나 통증은 어느 정도였나요?",
+                "selectedOptionSortOrder": 2
+            },
+            {
+                "questionContent": "최근 1주일 동안, 손목 사용 시 불편함이나 부담을 느낀 정도는 어느 정도였나요?",
+                "selectedOptionSortOrder": 3
+            },
+            {
+                "questionContent": "최근 1주일 동안, 하루 평균 장시간 앉아서 보내는 시간은 어느 정도였나요?",
+                "selectedOptionSortOrder": 5
+            },
+            {
+                "questionContent": "최근 1주일 동안, 전반적인 신체 피로감은 어느 정도였나요?",
+                "selectedOptionSortOrder": 4
+            }
+        ]
+    }
+}
+```
+</details>
+
+
+#### Response (Callback / Polling 동일)
+
+<details>
+<summary>v2 Response</summary>
+
+```json
+{
+    "taskId": "9f3a2c1b-7c1e-4a6b-9d3a-2c1b7c1e4a6b",
+    "userId": 1,
+    "status": "COMPLETED",
+    "progress": 100,
+    "currentStep": "운동 플랜 추천 완료!",
+    "summary": {
+        "totalRoutines": 1,
+        "totalExercises": 2
+    },
+    "errorMessage": null,
+    "completedAt": "2026-01-06T15:42:10Z",
+    "routines": [
+        {
+            "routineOrder": 1,
+            "reason": "아침 워밍업 루틴으로 목 건강을 최우선으로 고려하여 허리와 어깨를 보조적으로 구성",
+            "steps": [
+                {
+                    "exerciseId": 60,
+                    "type": "DURATION",
+                    "stepOrder": 1,
+                    "limitTime": 30,
+                    "durationTime": 10,
+                    "targetReps": null,
+                    "side": null
+                },
+                {
+                    "exerciseId": 51,
+                    "type": "REPS",
+                    "stepOrder": 2,
+                    "limitTime": 30,
+                    "durationTime": null,
+                    "targetReps": 10,
+                    "side": "left"
+                }
+            ]
+        }
+    ]
+}
+```
+</details>
+

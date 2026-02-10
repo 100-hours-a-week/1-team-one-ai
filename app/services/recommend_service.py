@@ -84,12 +84,15 @@ class RecommendService:
         else:
             self._rule_based = None
 
-    def recommend_routines(self, survey: UserSurvey) -> LLMRoutineOutput:
+    def recommend_routines(
+        self, survey: UserSurvey, *, user_id: int | None = None
+    ) -> LLMRoutineOutput:
         """
         설문 데이터를 기반으로 운동 루틴 추천 - LLM 기반 추천 (재시도 포함)
 
         Args:
         - survey: 사용자 설문 데이터
+        - user_id: 사용자 식별자 (향후 개인화 추천에 사용, 현재 로깅 용도)
 
         Returns:
         - LLMRoutineOutput: 추천된 루틴 목록
@@ -105,34 +108,41 @@ class RecommendService:
             try:
                 raw_response = self._llm.generate(SYSTEM_PROMPT, user_prompt)
                 result = self._parse_response(raw_response)  # raise error
-                logger.info("LLM 추천 성공 (시도 %d/%d)", attempt + 1, self._max_tries)
+                logger.info(
+                    "LLM 추천 성공 (시도 %d/%d) [user_id=%s]",
+                    attempt + 1,
+                    self._max_tries,
+                    user_id,
+                )
                 return result
 
             except RETRYABLE_ERRORS as e:  # 재시도 가능한 에러 (LLMTimeoutError, LLMNetworkError, LLMInvalidResponseError)
                 last_error = e
                 logger.warning(
-                    "LLM 호출 실패, 재시도... (시도 %d/%d): %s",
+                    "LLM 호출 실패, 재시도... (시도 %d/%d) [user_id=%s]: %s",
                     attempt + 1,
                     self._max_tries,
+                    user_id,
                     e,
                 )
                 continue
 
             except LLMError as e:  # 재시도 불가능한 에러 (인증 실패 등)
                 last_error = e
-                logger.error("LLM 호출 실패 (재시도 불가): %s", e)
+                logger.error("LLM 호출 실패 (재시도 불가) [user_id=%s]: %s", user_id, e)
                 break
 
         # 모든 시도 실패 → fallback
         logger.warning(
-            "LLM 모든 시도 실패 (%d회), fallback_enabled=%s",
+            "LLM 모든 시도 실패 (%d회), fallback_enabled=%s [user_id=%s]",
             self._max_tries,
             self._fallback_enabled,
+            user_id,
         )
 
         # fallback 활성화 시 rule-based recommender 사용하여 결과 반환
         if self._fallback_enabled and self._rule_based:
-            logger.info("Rule-based fallback 실행")
+            logger.info("Rule-based fallback 실행 [user_id=%s]", user_id)
             return self._rule_based.recommend_routines(survey)
 
         # fallback 비활성화 시 에러 전파

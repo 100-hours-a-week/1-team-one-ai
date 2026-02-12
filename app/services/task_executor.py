@@ -69,7 +69,5 @@ class BackgroundTaskExecutor:
         self._task_service = task_service
 
     def submit(self, task_id: str) -> None:
-        self._background_tasks.add_task(
-            self._task_service.run_recommendation, task_id
-        )
+        self._background_tasks.add_task(self._task_service.run_recommendation, task_id)
         logger.debug("백그라운드 태스크 제출: %s", task_id)

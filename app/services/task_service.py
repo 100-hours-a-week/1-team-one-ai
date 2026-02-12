@@ -203,9 +203,7 @@ class TaskService:
             self._handle_failure(task_id, str(e), user_id=user_id)
 
         except Exception as e:
-            logger.exception(
-                "예상치 못한 오류 [task_id=%s, user_id=%d]", task_id, user_id
-            )
+            logger.exception("예상치 못한 오류 [task_id=%s, user_id=%d]", task_id, user_id)
             self._handle_failure(task_id, f"unexpected error: {e}", user_id=user_id)
 
     def _update_progress(self, task_id: str, step: ProgressStep) -> None:
@@ -222,9 +220,7 @@ class TaskService:
             PROGRESS_STEP_PERCENTAGE[step],
         )
 
-    def _handle_failure(
-        self, task_id: str, error_message: str, *, user_id: int
-    ) -> None:
+    def _handle_failure(self, task_id: str, error_message: str, *, user_id: int) -> None:
         """실패 처리 + 콜백 전송"""
         now = datetime.now(UTC)
         self._store.update(
@@ -235,9 +231,7 @@ class TaskService:
             error_message=error_message,
             completed_at=now,
         )
-        logger.error(
-            "추천 실패 [task_id=%s, user_id=%d]: %s", task_id, user_id, error_message
-        )
+        logger.error("추천 실패 [task_id=%s, user_id=%d]: %s", task_id, user_id, error_message)
 
         failure_result = TaskResult(
             taskId=task_id,

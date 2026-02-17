@@ -1,13 +1,12 @@
 # app/schemas/v2/request.py
 """
 V2 사용자 요청 데이터 스키마
-- class UserSurvey(BaseModel) - v1과 동일
 - class UserInputV2(BaseModel)
 """
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.v1.request import UserSurvey
+from app.schemas.common import UserSurvey
 
 
 class UserInputV2(BaseModel):

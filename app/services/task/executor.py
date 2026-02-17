@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
     from fastapi import BackgroundTasks
 
-    from app.services.task_service import TaskService
+    from app.services.task.service import TaskService
 
 logger = logging.getLogger(__name__)
 

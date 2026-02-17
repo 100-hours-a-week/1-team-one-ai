@@ -1,4 +1,5 @@
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -20,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 # 1. 로깅 설정
 setup_logging()
+
+logger.info("APP_ENV=%s", os.environ.get("APP_ENV", "dev"))
 
 # 2. 운동 데이터 로드 (settings.EXERCISE_API_URL 사용)
 try:

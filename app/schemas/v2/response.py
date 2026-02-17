@@ -1,32 +1,28 @@
 # app/schemas/v2/response.py
 """
 V2 응답 데이터 스키마
-- class TaskStatus(str, Enum)
 - class ProgressStep(str, Enum)
 - class TaskAcceptedResponse(BaseModel)   — POST 202 즉시 응답
 - class TaskResult(BaseModel)             — GET 폴링 응답
-- class TaskResult(BaseModel)        — coreBE 콜백 페이로드
+- class TaskResult(BaseModel)             — coreBE 콜백 페이로드
+
+
+# TODO: 설문 기반 분석 결과 추가
+# 예: 거북목 경향, 눈 피로 높음 등
 """
 
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.schemas.common import ExerciseType, Side  # noqa: F401
-from app.schemas.v1.response import (  # noqa: F401
-    LLMRoutineOutput,
-    RecommendationSummary,
-    Routine,
-    RoutineStep,
-)
+from app.domain.routine import Routine
+from app.schemas.common import RecommendationSummary, TaskStatus
 
-
-class TaskStatus(str, Enum):
-    IN_PROGRESS = "IN_PROGRESS"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
+# ============================================================
+# 진행 상황 관련 스키마
+# ============================================================
 
 
 class ProgressStep(str, Enum):
@@ -58,9 +54,8 @@ PROGRESS_STEP_PERCENTAGE: dict[ProgressStep, int] = {
     ProgressStep.COMPLETED: 100,
 }
 
-
 # ============================================================
-# V2 전용 응답 모델
+# 최종 응답 형태 (v2)
 # ============================================================
 
 
@@ -85,10 +80,10 @@ class TaskResult(BaseModel):
     - polling / callback 공용
     - 태스크 상태 + 완료 시 결과 포함
     - 성공/진행/실패 모두 동일한 구조로 전송
+    - RecommendationResponseV1과 같은 역할
 
     1. polling: GET /api/v2/routines/{taskId} 폴링 응답
     2. callback: coreBE에 전송할 콜백 페이로드
-
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -103,6 +98,16 @@ class TaskResult(BaseModel):
     summary: Optional[RecommendationSummary] = Field(
         None, description="추천 결과 요약 (완료 시 제공)"
     )
-    routines: Optional[List[Routine]] = Field(None, description="추천된 루틴 목록 (완료 시 제공)")
     errorMessage: Optional[str] = Field(None, description="실패 시 에러 메시지")
     completedAt: Optional[datetime] = Field(None, description="태스크 완료 시각 (UTC)")
+
+    routines: Optional[List[Routine]] = Field(None, description="추천된 루틴 목록 (완료 시 제공)")
+
+    @model_validator(mode="after")
+    def check_completed_status_fields(self) -> "TaskResult":
+        if self.status == TaskStatus.COMPLETED:
+            if self.summary is None:
+                raise ValueError("COMPLETED 상태에서는 summary가 필수입니다.")
+            if self.routines is None:
+                raise ValueError("COMPLETED 상태에서는 routines가 필수입니다.")
+        return self

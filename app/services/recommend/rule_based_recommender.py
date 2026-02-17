@@ -1,4 +1,4 @@
-# app/services/rule_based_recommender.py
+# app/services/recommend/rule_based_recommender.py
 
 """
 룰 기반 운동 추천 (LLM fallback)
@@ -9,17 +9,17 @@
 import logging
 
 from app.core.config import RoutineTimePolicy
-from app.schemas.v1.exercise import BodyPart, Exercise
-from app.schemas.v1.request import UserSurvey
-from app.schemas.v1.response import (
-    LLMRoutineOutput,
+from app.domain.exercise import BaseExercise, BodyPart
+from app.domain.routine import (
     Routine,
+    RoutineList,
     RoutineStep,
 )
-from app.utils.routine_step_converter import (
+from app.domain.routinestep_factory import (
     create_routinestep_from_exercise,
     find_bilateral_pair,
 )
+from app.schemas.common import UserSurvey
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,7 @@ KEYWORD_TO_BODY_PART: dict[str, BodyPart] = {
     "어깨": BodyPart.SHOULDER,
     "손목": BodyPart.WRIST,
     "허리": BodyPart.LOWER_BACK,
+    "눈": BodyPart.EYES,
 }
 
 # 부위 → 한글 이름 매핑
@@ -37,6 +38,7 @@ BODY_PART_TO_KOREAN: dict[BodyPart, str] = {
     BodyPart.SHOULDER: "어깨",
     BodyPart.WRIST: "손목",
     BodyPart.LOWER_BACK: "허리",
+    BodyPart.EYES: "눈",
 }
 
 
@@ -70,7 +72,7 @@ class RuleBasedRecommender:
         운동 데이터 초기화 및 부위별 그룹화
         exercises = exercise_repository.raw_data (exercises.json)
         """
-        self._exercises = [Exercise.model_validate(e) for e in exercises]
+        self._exercises = [BaseExercise.model_validate(e) for e in exercises]
         self._exercises_by_id = {ex.exerciseId: ex for ex in self._exercises}
         self._exercises_by_part = self._group_by_body_part()
         self._target_time = RoutineTimePolicy.TARGET_TIME
@@ -81,16 +83,12 @@ class RuleBasedRecommender:
             len(self._exercises),
         )
 
-    def _group_by_body_part(self) -> dict[BodyPart, list[Exercise]]:
+    def _group_by_body_part(self) -> dict[BodyPart, list[BaseExercise]]:
         """
         운동을 부위별로 그룹화
         init 시 1회 수행
         """
-        grouped: dict[BodyPart, list[Exercise]] = {part: [] for part in BodyPart}
-        # grouped = {
-        # BodyPart.NECK: list[Exercise],
-        # ...
-        # }
+        grouped: dict[BodyPart, list[BaseExercise]] = {part: [] for part in BodyPart}
         for exercise in self._exercises:
             grouped[exercise.bodyPart].append(exercise)
 
@@ -120,13 +118,38 @@ class RuleBasedRecommender:
         )
         return scores
 
-    def _create_step(self, exercise: Exercise, step_order: int) -> RoutineStep:
+    def _create_step(self, exercise: BaseExercise, step_order: int) -> RoutineStep:
         """
         운동 데이터로 RoutineStep 생성
         _create_routine에서 호출
-        Exercise → RoutineStep 변환 및 bilateral exercise 처리
+        BaseExercise → RoutineStep 변환 및 bilateral exercise 처리
         """
         return create_routinestep_from_exercise(exercise, step_order)
+
+    def _create_eyes_routine(self, routine_order: int) -> Routine | None:
+        """
+        EYES 전용 루틴 생성 (1 루틴 = EYES 운동만 포함)
+
+        EYES 운동은 pose 구조가 body part 운동과 완전히 다르므로(keyFrames/totalDurationMs),
+        별개의 루틴으로 분리하여 다른 body part 운동과 섞이지 않도록 한다.
+
+        Returns:
+        - EYES 운동이 있으면 Routine, 없으면 None
+        """
+        eye_exercises = self._exercises_by_part.get(BodyPart.EYES, [])
+        if not eye_exercises:
+            return None
+
+        steps: list[RoutineStep] = []
+        for idx, exercise in enumerate(eye_exercises):
+            step = self._create_step(exercise, idx + 1)
+            steps.append(step)
+
+        return Routine(
+            routineOrder=routine_order,
+            reason="눈 피로 해소를 위한 눈 운동 루틴입니다.",
+            steps=steps,
+        )
 
     def _create_routine(
         self,
@@ -134,16 +157,19 @@ class RuleBasedRecommender:
         sorted_parts: list[tuple[BodyPart, int]],
     ) -> Routine:
         """
-        단일 루틴 생성
+        단일 body part 루틴 생성 (EYES 제외)
         recommend_routines 호출 시 루틴 수 (routine_count) 만큼 수행
         """
+        # EYES는 별도 루틴으로 처리하므로 제외
+        body_parts = [(p, s) for p, s in sorted_parts if p != BodyPart.EYES]
+
         steps: list[RoutineStep] = []
         used_exercise_ids: set[int] = set()
         step_order = 1  # 단일 루틴 내 스텝 순서
         total_time = 0  # 단일 루틴 총 시간
 
         # 통증 부위 우선으로 운동 선택
-        for body_part, _ in sorted_parts:
+        for body_part, _ in body_parts:
             if total_time >= self._target_time:
                 break
 
@@ -164,10 +190,12 @@ class RuleBasedRecommender:
                 if total_time >= self._target_time:
                     break
 
-        # 루틴 최소 시간 확보 (부족하면 다른 부위에서 추가)
+        # 루틴 최소 시간 확보 (부족하면 다른 부위에서 추가, EYES 제외)
         if total_time < self._min_time:
             for exercise in self._exercises:
                 if exercise.exerciseId in used_exercise_ids:
+                    continue
+                if exercise.bodyPart == BodyPart.EYES:
                     continue
 
                 step = self._create_step(exercise, step_order)
@@ -180,8 +208,8 @@ class RuleBasedRecommender:
                     break
 
         # 루틴 이유 생성
-        if sorted_parts:
-            top_part = sorted_parts[0][0]
+        if body_parts:
+            top_part = body_parts[0][0]
             part_name = BODY_PART_TO_KOREAN.get(top_part, top_part.value)
             reason = f"{part_name} 부위 집중 케어를 위한 루틴입니다."
         else:
@@ -243,6 +271,8 @@ class RuleBasedRecommender:
         for exercise in exercises_to_check:
             if exercise.exerciseId in exclude_ids:
                 continue
+            if exercise.bodyPart == BodyPart.EYES:
+                continue
 
             if current_time >= target_time:
                 break
@@ -287,17 +317,18 @@ class RuleBasedRecommender:
         )
         return steps
 
-    def recommend_routines(self, survey: UserSurvey) -> LLMRoutineOutput:
+    def recommend_routines(self, survey: UserSurvey) -> RoutineList:
         """
         설문 기반 룰 추천 실행.
 
         1. 설문에서 통증 부위 및 강도 추출
         2. 통증 강도 순으로 정렬 (높은 순)
-        3. 루틴 생성 (통증 부위 우선순위 회전)
-        4. 루틴 반환
+        3. EYES 순위가 높으면 EYES 전용 루틴 1개 할당
+        4. 나머지 루틴은 body part 운동으로 생성 (통증 부위 우선순위 회전)
+        5. 루틴 반환
 
         Returns:
-        - LLMRoutineOutput: LLM 응답과 동일한 형식
+        - RoutineList: LLM 응답과 동일한 형식
         """
         # 1. 설문에서 통증 부위 및 강도 추출
         pain_scores = self._extract_pain_scores(survey)
@@ -306,18 +337,31 @@ class RuleBasedRecommender:
         sorted_parts = sorted(pain_scores.items(), key=lambda x: x[1], reverse=True)
 
         # 3. 루틴 생성
-        routines = []
+        routines: list[Routine] = []
         routine_count = max(1, survey.routineCount)
+        routine_order = 1
 
-        for i in range(routine_count):
+        # EYES가 상위 순위에 있으면 EYES 전용 루틴 1개 할당
+        eyes_score = pain_scores.get(BodyPart.EYES, 0)
+        if eyes_score > 0 and self._exercises_by_part.get(BodyPart.EYES):
+            eyes_routine = self._create_eyes_routine(routine_order)
+            if eyes_routine is not None:
+                routines.append(eyes_routine)
+                routine_order += 1
+
+        # 나머지 루틴은 body part 운동으로 생성
+        body_sorted_parts = [(p, s) for p, s in sorted_parts if p != BodyPart.EYES]
+
+        for i in range(routine_count - len(routines)):
             # 통증 부위 우선순위 회전
-            rotated_parts = sorted_parts[i:] + sorted_parts[:i]
+            rotated_parts = body_sorted_parts[i:] + body_sorted_parts[:i]
 
             routine = self._create_routine(
-                routine_order=i + 1,
+                routine_order=routine_order,
                 sorted_parts=rotated_parts,
             )
             routines.append(routine)
+            routine_order += 1
 
         total_steps = sum(len(r.steps) for r in routines)
         logger.info(
@@ -342,4 +386,4 @@ class RuleBasedRecommender:
                     [s.exerciseId for s in second.steps],
                 )
 
-        return LLMRoutineOutput(routines=routines)
+        return RoutineList(routines=routines)

@@ -34,6 +34,8 @@ COPY --from=builder --chown=nobody:nogroup /app/.venv /app/.venv
 # 소스 코드 복사
 COPY --chown=nobody:nogroup . .
 
+RUN chown -R nobody:nogroup /app
+
 # 비루트 사용자로 실행
 USER nobody
 

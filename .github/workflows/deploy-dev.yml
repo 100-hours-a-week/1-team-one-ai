@@ -1,0 +1,256 @@
+name: AI Deploy to Dev
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      image_uri:
+        description: '배포할 Docker 이미지 URI (예: .../ai:dev-latest)'
+        required: true
+        type: string
+      instance_tag_name:
+        description: 'EC2를 찾을 태그 Key'
+        required: true
+        type: string
+      instance_tag_value:
+        description: 'EC2를 찾을 태그 Value'
+        required: true
+        type: string
+      # 알림용 메타데이터
+      pr_number:
+        description: 'PR 번호'
+        required: true
+        type: number
+      pr_title:
+        description: 'PR 제목'
+        required: true
+        type: string
+      base_ref:
+        description: '베이스 브랜치 (main, dev)'
+        required: true
+        type: string
+      actor:
+        description: 'Triggered by (GitHub 사용자)'
+        required: true
+        type: string
+      repository:
+        description: 'Repository 이름'
+        required: true
+        type: string
+      run_id:
+        description: 'GitHub Actions Run ID'
+        required: true
+        type: string
+    secrets:
+      DISCORD_WEBHOOK_URL:
+        required: true
+      DISCORD_ROLE_AI:
+        required: true
+      DISCORD_ROLE_AI_ONCALL:
+        required: true
+      AWS_ROLE_ARN:
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-2
+
+jobs:
+  deploy-via-ssm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Find Target Instance
+        id: find-instance
+        run: |
+          echo "Finding instance with tag ${{ inputs.instance_tag_name }}=${{ inputs.instance_tag_value }}..."
+          
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:${{ inputs.instance_tag_name }},Values=${{ inputs.instance_tag_value }}" "Name=instance-state-name,Values=running" \
+            --query "Reservations[*].Instances[*].InstanceId" \
+            --output text)
+
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ]; then
+            echo "Error: No running instance found!"
+            exit 1
+          fi
+
+          echo "Target Instance ID: $INSTANCE_ID"
+          echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_OUTPUT
+
+      - name: Send SSM Command (Docker Compose Up)
+        run: |
+          echo "Deploying Image: ${{ inputs.image_uri }}"
+
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "${{ steps.find-instance.outputs.INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploying AI to Dev" \
+            --parameters commands='[
+              "echo \"=== Start Deployment ===\"",
+
+              "mkdir -p /home/ubuntu/app",
+              "cd /home/ubuntu/app", 
+              
+              "echo \"1. Login to ECR\"",
+              "ECR_REGISTRY=$(echo ${{ inputs.image_uri }} | cut -d/ -f1)",
+              "aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_REGISTRY",
+            
+              "export ECR_REGISTRY=$ECR_REGISTRY",
+              "export AI_IMAGE_URI=${{ inputs.image_uri }}",
+
+              "echo \"2. Backup Current Image\"",
+              "if docker image inspect $ECR_REGISTRY/ai:dev-latest > /dev/null 2>&1; then",
+              "  echo \"Found existing image. Tagging as backup...\"",
+              "  docker tag $ECR_REGISTRY/ai:dev-latest ai:rollback-backup",
+              "else",
+              "  echo \"No existing image found. Skipping backup.\"",
+              "fi",
+              
+              "echo \"3. Pull New Image\"",
+              "docker compose pull ai || { echo \"Docker pull failed!\"; exit 1; }",
+              
+              "echo \"4. Restart Container with New Image\"",
+              "docker compose up -d ai",
+
+              "echo \"5. Health Check & Verification\"",
+              "echo \"Waiting for AI to be ready...\"",
+
+              "IS_HEALTHY=false",
+              "FOR_LIMIT=12",
+
+              "for i in $(seq 1 $FOR_LIMIT); do",
+              "  if [ -z \"$(docker compose ps -q ai)\" ]; then",
+              "    echo \"Container is not running!\"",
+              "    docker compose logs ai --tail 20",
+              "    break",
+              "  fi",
+              
+              "  # AI 포트(8000) 및 Health Check 경로(/api/v1/health) 설정",
+              "  if curl -s -f http://localhost:8000/api/v1/health > /dev/null; then",
+              "    echo \"Health Check Passed! Deployment Complete.\"",
+              "    IS_HEALTHY=\"true\"",
+              "    break",
+              "  fi",
+              
+              "  echo \"App is starting... ($i/$FOR_LIMIT)\"",
+              "  sleep 5",
+              "done",
+
+              "if [ \"$IS_HEALTHY\" = \"true\" ]; then",
+              "  echo \"Deployment Configured Successfully.\"",
+              "  docker rmi ai:rollback-backup 2>/dev/null || true",
+              "  docker image prune -f",
+              "  exit 0",
+
+              "else",
+              "  echo \"Health Check Failed! Initiating Rollback...\"",
+              
+              "  if docker image inspect ai:rollback-backup > /dev/null 2>&1; then",
+              "    echo \"Restoring previous image...\"",
+              "    docker tag ai:rollback-backup $ECR_REGISTRY/ai:dev-latest",
+              "    docker compose up -d --force-recreate ai",
+              "    echo \"Rollback Complete. Server is running on previous version.\"",
+              "  else",
+              "    echo \"No backup image found. Cannot rollback.\"",
+              "  fi",
+              
+              "  echo \"=== Error Logs ===\"",
+              "  docker compose logs ai --tail 50",
+              "  exit 1",
+              "fi"
+            ]' \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "SSM Command Sent! ID: $COMMAND_ID"
+
+          echo "Waiting for command execution..."
+          while :; do
+            STATUS=$(aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "${{ steps.find-instance.outputs.INSTANCE_ID }}" --query "Status" --output text)
+            
+            if [[ "$STATUS" == "Success" ]]; then
+              echo "Deployment Successful!"
+              echo "=== Command Output ==="
+              aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "${{ steps.find-instance.outputs.INSTANCE_ID }}" --query "StandardOutputContent" --output text
+              exit 0
+            elif [[ "$STATUS" == "Failed" || "$STATUS" == "Cancelled" || "$STATUS" == "TimedOut" ]]; then
+              echo "Deployment Failed! Status: $STATUS"
+              echo "=== Standard Output ==="
+              aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "${{ steps.find-instance.outputs.INSTANCE_ID }}" --query "StandardOutputContent" --output text
+              echo "=== Standard Error ==="
+              aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "${{ steps.find-instance.outputs.INSTANCE_ID }}" --query "StandardErrorContent" --output text
+              exit 1
+            fi
+            
+            echo "Status: $STATUS... Waiting 10s"
+            sleep 10
+          done
+
+      - name: Get Current Time
+        if: always()
+        uses: 1466587594/get-current-time@v2
+        id: current-time
+        with:
+          format: 'YYYY-MM-DD HH:mm:ss'
+          utcOffset: "+09:00"
+          timezone: 'Asia/Seoul'
+
+      - name: Discord Notification - Success
+        if: success()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_EMBEDS: |
+            [{
+              "title": "✅ ${{ inputs.environment }} AI 배포(CD) 성공", 
+              "color": 5763719,
+              "fields": [
+                {"name": "Repository", "value": "${{ inputs.repository }}", "inline": false},
+                {"name": "Environment", "value": "${{ inputs.environment }}", "inline": true},
+                {"name": "Merge To", "value": "${{ inputs.base_ref }}", "inline": true},
+                {"name": "Triggered By", "value": "${{ inputs.actor }}", "inline": false},
+                {"name": "Commit/PR", "value": "${{ inputs.pr_title }}", "inline": false},
+                {"name": "Version", "value": "${{ env.DEPLOY_TAG || 'N/A' }}", "inline": true},
+                {"name": "Actions Log", "value": "[Link to Action](https://github.com/${{ inputs.repository }}/actions/runs/${{ inputs.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "${{ steps.current-time.outputs.formattedTime }} KST"
+              }
+            }]
+        uses: Ilshidur/action-discord@0.4.0
+        with:
+          args: 'v2 ${{ inputs.environment }} 배포 완료! <@&${{ secrets.DISCORD_ROLE_AI }}>'
+
+      - name: Discord Notification - Failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_EMBEDS: |
+            [{
+              "title": "🚨 ${{ inputs.environment }} AI 배포(CD) 실패",
+              "color": 15548997,
+              "fields": [
+                {"name": "Repository", "value": "${{ inputs.repository }}", "inline": false},
+                {"name": "Environment", "value": "${{ inputs.environment }}", "inline": true},
+                {"name": "Merge To", "value": "${{ inputs.base_ref }}", "inline": true},
+                {"name": "Triggered By", "value": "${{ inputs.actor }}", "inline": false},
+                {"name": "Commit/PR", "value": "${{ inputs.pr_title }}", "inline": false},
+                {"name": "Actions Log", "value": "[Link to Action](https://github.com/${{ inputs.repository }}/actions/runs/${{ inputs.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "${{ steps.current-time.outputs.formattedTime }} KST"
+              }
+            }]
+        uses: Ilshidur/action-discord@0.4.0
+        with:
+          args: 'v2 ${{ inputs.environment }} 배포 실패! 로그 확인 필요 <@&${{ secrets.DISCORD_ROLE_AI_ONCALL }}>'

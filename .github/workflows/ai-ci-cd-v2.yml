@@ -1,0 +1,251 @@
+name: FastAPI CI/CD with Docker
+
+on:
+  pull_request:
+    types: [opened, synchronize, closed]
+    branches: [develop, main] # 기존 백엔드의 dev 대신 FastAPI의 develop 브랜치 명칭 사용
+
+permissions:
+  id-token: write # AWS OIDC 인증
+  contents: write
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: ai
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # =========================================================
+  # 1. 빌드 및 도커 이미지 푸시 (CI)
+  # =========================================================
+  build-and-push:
+    if: github.event.action == 'opened' || github.event.action == 'synchronize'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 도커 빌드 전 코드 문법(Lint)을 검사해 Fail-Fast 유도
+    #   - name: Setup Python 3.11
+    #     uses: actions/setup-python@v5
+    #     with:
+    #       python-version: '3.11'
+          
+    #   - name: Install uv
+    #     run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+    #   - name: Install Dependencies for Lint/Test
+    #     run: |
+    #       uv pip install --system \
+    #         --index-url https://download.pytorch.org/whl/cpu \
+    #         --extra-index-url https://pypi.org/simple \
+    #         -r requirements.txt
+    #       uv pip install --system ruff pytest httpx
+
+    #   - name: Run Linter (Ruff)
+    #     run: ruff check . --fix
+    #     continue-on-error: true
+
+    #   - name: Run Tests
+    #     run: pytest
+
+      # AWS 자격 증명 설정 (OIDC 방식)
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ECR 로그인
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 도커 이미지 빌드 및 푸시
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:pr-$PR_HEAD_SHA .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:pr-$PR_HEAD_SHA
+
+      # 현재 시간 구하기 (KST)
+      - name: Get Current Time
+        if: always()
+        uses: 1466587594/get-current-time@v2
+        id: current-time
+        with:
+          format: 'YYYY-MM-DD HH:mm:ss'
+          utcOffset: "+09:00"
+          timezone: 'Asia/Seoul'
+
+      # Discord 성공 알림 (AI 역할 태그)
+      - name: Discord Notification - Success
+        if: success()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_EMBEDS: |
+            [{
+              "title": "✅ AI CI 성공",
+              "color": 5763719,
+              "fields": [
+                {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
+                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
+                {"name": "Triggered By", "value": "${{ github.actor }}", "inline": false},
+                {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
+                {"name": "Actions Log", "value": "[Link to Action](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "${{ steps.current-time.outputs.formattedTime }} KST"
+              }
+            }]
+        uses: Ilshidur/action-discord@0.4.0
+        with:
+          args: 'v2 CI 파이프라인이 성공적으로 완료되었습니다. <@&${{ secrets.DISCORD_ROLE_AI }}>'
+
+      # Discord 실패 알림 (AI 역할 태그)
+      - name: Discord Notification - Failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_EMBEDS: |
+            [{
+              "title": "🚨 AI CI 실패",
+              "color": 15548997,
+              "fields": [
+                {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
+                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
+                {"name": "Triggered By", "value": "${{ github.actor }}", "inline": false},
+                {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
+                {"name": "Actions Log", "value": "[Link to Action](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "v2 ${{ steps.current-time.outputs.formattedTime }} KST"
+              }
+            }]
+        uses: Ilshidur/action-discord@0.4.0
+        with:
+          args: 'v2 CI 파이프라인 실행 중 오류가 발생했습니다. 로그를 확인해주세요. <@&${{ secrets.DISCORD_ROLE_AI_ONCALL }}> '
+
+  # =========================================================
+  # 2. 이미지 리태깅 (Merge 시 실행)
+  # =========================================================
+  promote-image:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      final_image_uri: ${{ steps.retag.outputs.FINAL_URI }}
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Retag Image
+        id: retag
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          SOURCE_TAG: pr-${{ github.event.pull_request.head.sha }}
+          TARGET_TAG: ${{ github.event.pull_request.merge_commit_sha }}
+          BASE_BRANCH: ${{ github.base_ref }}
+        run: |
+          echo "Finding image with tag: $SOURCE_TAG..."
+          
+          MANIFEST=$(aws ecr batch-get-image \
+            --repository-name $ECR_REPOSITORY \
+            --image-ids imageTag=$SOURCE_TAG \
+            --query 'images[].imageManifest' \
+            --output text)
+            
+          if [ -z "$MANIFEST" ] || [ "$MANIFEST" == "None" ]; then
+            echo "Error: Source image ($SOURCE_TAG) not found in ECR!"
+            exit 1
+          fi
+
+          echo "Image found! Retagging to: $TARGET_TAG"
+
+          # 1. Merge SHA 태그 붙이기
+          aws ecr put-image \
+            --repository-name $ECR_REPOSITORY \
+            --image-tag $TARGET_TAG \
+            --image-manifest "$MANIFEST" || echo "Image $TARGET_TAG already exists. Skipping retag."
+            
+          # 2. 환경별 Latest 태그 붙이기
+          if [[ "$BASE_BRANCH" == "develop" ]]; then
+            aws ecr put-image --repository-name $ECR_REPOSITORY --image-tag dev-latest --image-manifest "$MANIFEST" || echo "dev-latest already exists. Skipping."
+          elif [[ "$BASE_BRANCH" == "main" ]]; then
+            aws ecr put-image --repository-name $ECR_REPOSITORY --image-tag staging-latest --image-manifest "$MANIFEST" || echo "staging-latest already exists. Skipping."
+            aws ecr put-image --repository-name $ECR_REPOSITORY --image-tag production-latest --image-manifest "$MANIFEST" || echo "production-latest already exists. Skipping."
+          fi
+          
+          echo "FINAL_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$TARGET_TAG" >> $GITHUB_OUTPUT
+
+  # =========================================================
+  # 3. Dev 배포 (develop 브랜치 Merge 시)  
+  # =========================================================
+  deploy-dev:
+    needs: promote-image
+    if: github.event.pull_request.merged == true && github.base_ref == 'develop'
+    uses: ./.github/workflows/deploy-dev.yml
+    with:
+      environment: dev
+      image_uri: ${{ needs.promote-image.outputs.final_image_uri }}
+      instance_tag_name: "Environment"
+      instance_tag_value: "dev"
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      base_ref: ${{ github.base_ref }}
+      actor: ${{ github.actor }}
+      run_id: ${{ github.run_id }}
+      repository: ${{ github.repository }}
+    secrets: inherit
+
+  # =========================================================
+  # 4. Staging 배포 (main 브랜치 Merge 시)
+  # =========================================================
+  deploy-staging:
+    needs: promote-image
+    if: github.event.pull_request.merged == true && github.base_ref == 'main'
+    uses: ./.github/workflows/deploy-asg-rolling.yml
+    with:
+      environment: staging
+      image_uri: ${{ needs.promote-image.outputs.final_image_uri }}
+      asg_name: "raisedeveloper-ai-staging-asg" # AI용 ASG 이름으로 변경 필요
+      lt_id: "lt-036f21d3b8160909f"             # AI용 Staging LT ID 입력
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      base_ref: ${{ github.base_ref }}
+      actor: ${{ github.actor }}
+      run_id: ${{ github.run_id }}
+      repository: ${{ github.repository }}
+    secrets: inherit
+  
+  # =========================================================
+  # 5. Production 배포 (Staging 성공 후)
+  # =========================================================
+  deploy-production:
+    needs: [promote-image, deploy-staging]
+    if: github.event.pull_request.merged == true && github.base_ref == 'main'
+    uses: ./.github/workflows/deploy-asg-rolling.yml
+    with:
+      environment: production
+      image_uri: ${{ needs.promote-image.outputs.final_image_uri }}
+      asg_name: "raisedeveloper-ai-production-asg" # AI용 ASG 이름으로 변경 필요
+      lt_id: "lt-0e0d9a3af7d1b6e42"                # AI용 Production LT ID 입력
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      base_ref: ${{ github.base_ref }}
+      actor: ${{ github.actor }}
+      run_id: ${{ github.run_id }}
+      repository: ${{ github.repository }}
+    secrets: inherit

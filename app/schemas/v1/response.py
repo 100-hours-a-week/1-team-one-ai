@@ -1,14 +1,11 @@
 # app/schemas/v1/response.py
 """
 사용자 응답 데이터 스키마
-- class TaskStatus(str, Enum)
 - class ProgressStep(str, Enum)
     - PROGRESS_STEP_PERCENTAGE
-- class ExerciseType(str, Enum)
-- class RoutineStep(BaseModel)
-- class Routine(BaseModel)
+- class RoutineStep(RoutineStep)
+- class Routine(Routine)
 - class RecommendationSummary(BaseModel)
-- class LLMRoutineOutput(BaseModel)
 - class RecommendationResponseV1(BaseModel)
 """
 
@@ -18,13 +15,12 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.schemas.common import ExerciseType, Side
+from app.domain.routine import Routine
+from app.schemas.common import RecommendationSummary, TaskStatus
 
-
-class TaskStatus(str, Enum):
-    IN_PROGRESS = "IN_PROGRESS"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
+# ============================================================
+# 진행 상황 관련 스키마
+# ============================================================
 
 
 class ProgressStep(str, Enum):
@@ -57,73 +53,9 @@ PROGRESS_STEP_PERCENTAGE: dict[ProgressStep, int] = {
 }
 
 
-class RoutineStep(BaseModel):
-    """
-    루틴 내 단일 운동 스텝
-    """
-
-    exerciseId: int = Field(..., description="운동 ID")
-    # name: str = Field(..., description="운동 이름")
-    type: ExerciseType = Field(..., description="운동 수행 방식")
-    stepOrder: int = Field(..., ge=1, description="루틴 내 순서")
-
-    limitTime: int = Field(..., ge=0, description="해당 스텝 제한 시간(초)")
-    durationTime: Optional[int] = Field(
-        None, ge=0, description="지속 시간 기반 운동일 경우 수행 시간(초)"
-    )
-    targetReps: Optional[int] = Field(
-        None, ge=0, description="횟수 기반 운동일 경우 목표 반복 횟수"
-    )
-    side: Optional[Side] = Field(None, description="양측 운동의 경우 방향 (왼쪽/오른쪽)")
-
-    model_config = ConfigDict(extra="forbid")
-
-    @model_validator(mode="after")
-    def check_exercise_type_fields(self) -> "RoutineStep":
-        if self.type == ExerciseType.REPS:
-            if self.targetReps is None:
-                raise ValueError("REPS 타입 운동은 targetReps가 필수입니다.")
-            if self.durationTime is not None:
-                raise ValueError("REPS 타입 운동은 durationTime을 가질 수 없습니다.")
-        elif self.type == ExerciseType.DURATION:
-            if self.durationTime is None:
-                raise ValueError("DURATION 타입 운동은 durationTime이 필수입니다.")
-            if self.targetReps is not None:
-                raise ValueError("DURATION 타입 운동은 targetReps를 가질 수 없습니다.")
-        return self
-
-
-class Routine(BaseModel):
-    """
-    추천된 루틴 1개
-    """
-
-    routineOrder: int = Field(..., ge=1, description="루틴 순서")
-    reason: str = Field(..., description="루틴 구성 이유")
-
-    steps: List[RoutineStep] = Field(..., description="루틴에 포함된 운동 스텝 목록")
-
-    @model_validator(mode="after")
-    def check_steps_not_empty(self) -> "Routine":
-        if not self.steps:
-            raise ValueError("루틴은 최소 1개 이상의 step을 포함해야 합니다.")
-        return self
-
-
-class RecommendationSummary(BaseModel):
-    """
-    추천 결과 요약 정보
-    - v1 기준으로는 단순 카운트 정보만 제공
-    """
-
-    totalRoutines: int = Field(..., ge=0, description="추천된 루틴 개수")
-    totalExercises: int = Field(..., ge=0, description="전체 운동 개수")
-
-
-class LLMRoutineOutput(BaseModel):
-    """LLM이 출력하는 JSON 구조"""
-
-    routines: List[Routine]
+# ============================================================
+# 최종 응답 형태 (v1)
+# ============================================================
 
 
 class RecommendationResponseV1(BaseModel):

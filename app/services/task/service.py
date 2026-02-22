@@ -1,4 +1,4 @@
-# app/services/task_service.py
+# app/services/task/service.py
 """
 Task 생명주기 오케스트레이터
 - class TaskService — Task 생성, 백그라운드 추천 처리, 상태 조회
@@ -10,20 +10,19 @@ import logging
 from datetime import UTC, datetime
 
 from app.core.exceptions import AppError
+from app.schemas.common import TaskStatus
 from app.schemas.v2.request import UserInputV2
 from app.schemas.v2.response import (
     PROGRESS_STEP_PERCENTAGE,
     ProgressStep,
-    RecommendationSummary,
     TaskResult,
-    TaskStatus,
 )
 from app.schemas.v2.task import TaskData
 from app.services.callback_client import CallbackClient
-from app.services.cold_start_checker import ColdStartChecker
-from app.services.recommend_service import RecommendService
-from app.services.response_builder import ResponseBuilder
-from app.services.task_store import TaskStore
+from app.services.recommend.cold_start_checker import ColdStartChecker
+from app.services.recommend.recommend_service import RecommendService
+from app.services.response.v2 import V2ResponseBuilder
+from app.services.task.store import TaskStore
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +47,7 @@ class TaskService:
         self,
         store: TaskStore,
         recommend_service: RecommendService,
-        response_builder: ResponseBuilder,
+        response_builder: V2ResponseBuilder,
         callback_client: CallbackClient,
         cold_start_checker: ColdStartChecker,
     ) -> None:
@@ -110,17 +109,11 @@ class TaskService:
         백그라운드에서 실행되는 추천 처리 로직
 
         1. LLM 추천 호출
-        2. 결과 검증 + 응답 빌드
+        2. 결과 검증 + 응답 빌드 (V2ResponseBuilder → TaskResult 직접 생성)
         3. Task 상태 업데이트
         4. coreBE 콜백 전송
 
         실패 시에도 콜백을 전송합니다.
-
-        Args:
-        - task_id: 조회할 Task ID
-
-        Returns:
-        - None
         """
         task = self._store.get(task_id)
 
@@ -161,38 +154,20 @@ class TaskService:
                     survey=survey, user_id=user_id
                 )
 
-            # Step 2: 결과 검증 + 응답 빌드
+            # Step 2: 결과 검증 + V2 응답 빌드 (TaskResult 직접 생성)
             self._update_progress(task_id, ProgressStep.RESULT_VALIDATION)
-            v1_response = self._response_builder.build(llm_output, task_id=task_id, survey=survey)
-
-            # Step 3: 완료 처리
-            now = datetime.now(UTC)
-            result = TaskResult(
-                taskId=task_id,
-                userId=user_id,
-                status=TaskStatus.COMPLETED,
-                progress=PROGRESS_STEP_PERCENTAGE[ProgressStep.COMPLETED],
-                currentStep=ProgressStep.COMPLETED.value,
-                errorMessage=None,
-                summary=RecommendationSummary(
-                    totalRoutines=v1_response.summary.totalRoutines,
-                    totalExercises=v1_response.summary.totalExercises,
-                )
-                if v1_response.summary
-                else None,
-                completedAt=now,
-                routines=[routine.model_copy() for routine in v1_response.routines]
-                if v1_response.routines
-                else None,
+            result = self._response_builder.build(
+                llm_output, task_id=task_id, survey=survey, user_id=user_id
             )
 
+            # Step 3: 완료 처리
             self._store.update(
                 task_id,
                 status=TaskStatus.COMPLETED,
                 progress=PROGRESS_STEP_PERCENTAGE[ProgressStep.COMPLETED],
                 current_step=ProgressStep.COMPLETED.value,
                 result=result,
-                completed_at=now,
+                completed_at=result.completedAt,
             )
             logger.info("추천 완료 [task_id=%s, user_id=%d]", task_id, user_id)
 
@@ -203,9 +178,7 @@ class TaskService:
             self._handle_failure(task_id, str(e), user_id=user_id)
 
         except Exception as e:
-            logger.exception(
-                "예상치 못한 오류 [task_id=%s, user_id=%d]", task_id, user_id
-            )
+            logger.exception("예상치 못한 오류 [task_id=%s, user_id=%d]", task_id, user_id)
             self._handle_failure(task_id, f"unexpected error: {e}", user_id=user_id)
 
     def _update_progress(self, task_id: str, step: ProgressStep) -> None:
@@ -222,9 +195,7 @@ class TaskService:
             PROGRESS_STEP_PERCENTAGE[step],
         )
 
-    def _handle_failure(
-        self, task_id: str, error_message: str, *, user_id: int
-    ) -> None:
+    def _handle_failure(self, task_id: str, error_message: str, *, user_id: int) -> None:
         """실패 처리 + 콜백 전송"""
         now = datetime.now(UTC)
         self._store.update(
@@ -235,20 +206,10 @@ class TaskService:
             error_message=error_message,
             completed_at=now,
         )
-        logger.error(
-            "추천 실패 [task_id=%s, user_id=%d]: %s", task_id, user_id, error_message
-        )
+        logger.error("추천 실패 [task_id=%s, user_id=%d]: %s", task_id, user_id, error_message)
 
-        failure_result = TaskResult(
-            taskId=task_id,
-            userId=user_id,
-            status=TaskStatus.FAILED,
-            progress=PROGRESS_STEP_PERCENTAGE[ProgressStep.FAILED],
-            currentStep=ProgressStep.FAILED.value,
-            errorMessage=error_message,
-            completedAt=now,
-            summary=None,
-            routines=None,
+        failure_result = self._response_builder.build_failed(
+            task_id=task_id, error_message=error_message, user_id=user_id
         )
         self._callback_client.send(failure_result)
 

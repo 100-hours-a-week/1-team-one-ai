@@ -21,14 +21,14 @@ from app.data.loader import exercise_repository
 from app.schemas.v2.request import UserInputV2
 from app.schemas.v2.response import TaskAcceptedResponse, TaskResult
 from app.services.callback_client import CallbackClient
-from app.services.cold_start_checker import ColdStartChecker, DefaultColdStartChecker
 from app.services.llm_clients.ollama_client import OllamaClient
 from app.services.llm_clients.openai_client import OpenAIClient
-from app.services.recommend_service import RecommendService
-from app.services.response_builder import ResponseBuilder
-from app.services.task_executor import BackgroundTaskExecutor, TaskExecutor
-from app.services.task_service import TaskService
-from app.services.task_store import InMemoryTaskStore, TaskStore
+from app.services.recommend.cold_start_checker import ColdStartChecker, DefaultColdStartChecker
+from app.services.recommend.recommend_service import RecommendService
+from app.services.response.v2 import V2ResponseBuilder
+from app.services.task.executor import BackgroundTaskExecutor, TaskExecutor
+from app.services.task.service import TaskService
+from app.services.task.store import InMemoryTaskStore, TaskStore
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ router = APIRouter()
 # TODO: Task Executor 교체: BackgroundTaskExecutor → CeleryTaskExecutor
 _task_store: TaskStore = InMemoryTaskStore()
 _callback_client = CallbackClient()
-# TODO: Cold Start 교체: DefaultColdStartChecker → 실제 구현체
+# TODO: Cold Start checker 교체: DefaultColdStartChecker → 실제 구현체
 _cold_start_checker: ColdStartChecker = DefaultColdStartChecker()
 
 
@@ -68,12 +68,12 @@ def _create_recommend_service() -> RecommendService:
         )
 
     exercises = exercise_repository.raw_data
-    return RecommendService(llm_client=llm_client, exercises=exercises)
+    return RecommendService(llm_client=llm_client, exercises=exercises, api_version="v2")
 
 
-def _create_response_builder() -> ResponseBuilder:
-    """ResponseBuilder 싱글톤 인스턴스 생성 (모듈 로드 시 1회)"""
-    return ResponseBuilder(valid_exercise_ids=exercise_repository.exercise_ids)
+def _create_response_builder() -> V2ResponseBuilder:
+    """V2ResponseBuilder 싱글톤 인스턴스 생성 (모듈 로드 시 1회)"""
+    return V2ResponseBuilder(valid_exercise_ids=exercise_repository.exercise_ids)
 
 
 _recommend_service = _create_recommend_service()

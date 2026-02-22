@@ -16,9 +16,10 @@ from pydantic import ValidationError
 from app.configs.llm_config import llm_config
 from app.core.exceptions import ConfigurationError, RoutineValidationError
 from app.data.loader import exercise_repository
-from app.prompts.v1.recommend import SYSTEM_PROMPT, build_user_prompt
-from app.schemas.v1.request import UserSurvey
-from app.schemas.v1.response import LLMRoutineOutput
+from app.domain.routine import RoutineList
+from app.prompts.v1 import recommend as v1_prompt
+from app.prompts.v2 import recommend as v2_prompt
+from app.schemas.common import UserSurvey
 from app.services.llm_clients.base import (
     LLMClient,
     LLMError,
@@ -26,7 +27,7 @@ from app.services.llm_clients.base import (
     LLMNetworkError,
     LLMTimeoutError,
 )
-from app.services.rule_based_recommender import RuleBasedRecommender
+from app.services.recommend.rule_based_recommender import RuleBasedRecommender
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +44,33 @@ class RecommendService:
     2. 모든 재시도 실패 시 rule-based fallback
     """
 
-    def __init__(self, llm_client: LLMClient, exercises: list[dict] | None = None) -> None:
+    # API 버전별 프롬프트 모듈 매핑
+    _PROMPT_MODULES = {
+        "v1": v1_prompt,
+        "v2": v2_prompt,
+    }
+
+    def __init__(
+        self,
+        llm_client: LLMClient,
+        exercises: list[dict] | None = None,
+        api_version: str = "v1",
+    ) -> None:
         """
         Args:
         - llm_client: LLM 클라이언트 인스턴스
         - exercises: 운동 데이터 리스트
+        - api_version: API 버전 ("v1" 또는 "v2"), 프롬프트 선택에 사용
         """
         self._llm = llm_client
         self._exercises = exercises if exercises is not None else exercise_repository.raw_data
+
+        # 버전별 프롬프트 모듈 선택
+        prompt_module = self._PROMPT_MODULES.get(api_version)
+        if prompt_module is None:
+            raise ConfigurationError(f"지원하지 않는 API 버전: {api_version}")
+        self._system_prompt: str = prompt_module.SYSTEM_PROMPT
+        self._build_user_prompt = prompt_module.build_user_prompt
 
         # config에서 기본값 로드
         try:
@@ -84,9 +104,7 @@ class RecommendService:
         else:
             self._rule_based = None
 
-    def recommend_routines(
-        self, survey: UserSurvey, *, user_id: int | None = None
-    ) -> LLMRoutineOutput:
+    def recommend_routines(self, survey: UserSurvey, *, user_id: int | None = None) -> RoutineList:
         """
         설문 데이터를 기반으로 운동 루틴 추천 - LLM 기반 추천 (재시도 포함)
 
@@ -95,7 +113,7 @@ class RecommendService:
         - user_id: 사용자 식별자 (향후 개인화 추천에 사용, 현재 로깅 용도)
 
         Returns:
-        - LLMRoutineOutput: 추천된 루틴 목록
+        - RoutineList: 추천된 루틴 목록
 
         Raises:
         - LLMError: LLM 호출 실패
@@ -106,7 +124,7 @@ class RecommendService:
         # LLM 호출 (재시도 포함)
         for attempt in range(self._max_tries):
             try:
-                raw_response = self._llm.generate(SYSTEM_PROMPT, user_prompt)
+                raw_response = self._llm.generate(self._system_prompt, user_prompt)
                 result = self._parse_response(raw_response)  # raise error
                 logger.info(
                     "LLM 추천 성공 (시도 %d/%d) [user_id=%s]",
@@ -152,18 +170,18 @@ class RecommendService:
 
     def _build_prompt(self, survey: UserSurvey) -> str:
         """사용자 프롬프트 생성."""
-        return build_user_prompt(
+        return self._build_user_prompt(
             user=survey,
             exercises_text=json.dumps(
                 self._exercises, ensure_ascii=False
             ),  # exercise_repository.raw_data
         )
 
-    def _parse_response(self, raw: str) -> LLMRoutineOutput:
+    def _parse_response(self, raw: str) -> RoutineList:
         """LLM 응답 파싱 및 검증."""
         try:
             data = json.loads(raw)
-            return LLMRoutineOutput.model_validate(data)
+            return RoutineList.model_validate(data)
 
         except json.JSONDecodeError as e:
             raise LLMInvalidResponseError(f"LLM 응답 - JSON 파싱 실패: {e}") from e

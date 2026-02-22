@@ -9,8 +9,9 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from app.schemas.common import TaskStatus
 from app.schemas.v2.request import UserInputV2
-from app.schemas.v2.response import TaskResult, TaskStatus
+from app.schemas.v2.response import TaskResult
 
 
 class TaskData(BaseModel):

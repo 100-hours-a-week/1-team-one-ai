@@ -127,7 +127,7 @@ jobs:
               "echo \"Waiting for AI to be ready...\"",
 
               "IS_HEALTHY=false",
-              "FOR_LIMIT=12",
+              "FOR_LIMIT=60",
 
               "for i in $(seq 1 $FOR_LIMIT); do",
               "  if [ -z \"$(docker compose ps -q ai)\" ]; then",

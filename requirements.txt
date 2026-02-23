@@ -173,8 +173,14 @@ threadpoolctl==3.6.0
     # via scikit-learn
 tokenizers==0.22.2
     # via transformers
-torch==2.10.0
-    # via sentence-transformers
+torch==2.10.0 ; sys_platform == 'darwin'
+    # via
+    #   recommendation
+    #   sentence-transformers
+torch==2.10.0+cpu ; sys_platform != 'darwin'
+    # via
+    #   recommendation
+    #   sentence-transformers
 tqdm==4.67.1
     # via
     #   huggingface-hub

@@ -97,7 +97,7 @@ def create_routinestep_from_exercise(
     운동 유형에 따라 기본값 적용:
     - DURATION: durationTime=DEFAULT_DURATION_TIME, targetReps=None
     - REPS: durationTime=None, targetReps=10
-    - EYES (type=None): limitTime은 pose.totalDurationMs에서 계산 (기본 70초), durationTime/targetReps=None
+    - EYES: limitTime은 pose.totalDurationMs에서 계산 (기본 70초), durationTime/targetReps=None
 
     Args:
     - exercise: 변환할 운동 데이터
@@ -113,7 +113,7 @@ def create_routinestep_from_exercise(
     side = parse_side(exercise.name)
     ex_type = exercise.type
 
-    if ex_type is None:  # EYES
+    if ex_type == ExerciseType.EYES:
         return RoutineStep(
             exerciseId=exercise.exerciseId,
             type=ex_type,

@@ -9,7 +9,7 @@
 import logging
 
 from app.core.config import RoutineTimePolicy
-from app.domain.exercise import BaseExercise, BodyPart
+from app.domain.exercise import BaseExercise, BodyPart, ExerciseType
 from app.domain.routine import (
     Routine,
     RoutineList,
@@ -136,7 +136,7 @@ class RuleBasedRecommender:
         Returns:
         - EYES 운동이 있으면 Routine, 없으면 None
         """
-        eye_exercises = self._exercises_by_part.get(BodyPart.EYES, [])
+        eye_exercises = [ex for ex in self._exercises if ex.type == ExerciseType.EYES]
         if not eye_exercises:
             return None
 
@@ -195,7 +195,7 @@ class RuleBasedRecommender:
             for exercise in self._exercises:
                 if exercise.exerciseId in used_exercise_ids:
                     continue
-                if exercise.bodyPart == BodyPart.EYES:
+                if exercise.type == ExerciseType.EYES:
                     continue
 
                 step = self._create_step(exercise, step_order)
@@ -271,7 +271,7 @@ class RuleBasedRecommender:
         for exercise in exercises_to_check:
             if exercise.exerciseId in exclude_ids:
                 continue
-            if exercise.bodyPart == BodyPart.EYES:
+            if exercise.type == ExerciseType.EYES:
                 continue
 
             if current_time >= target_time:
@@ -343,7 +343,7 @@ class RuleBasedRecommender:
 
         # EYES가 상위 순위에 있으면 EYES 전용 루틴 1개 할당
         eyes_score = pain_scores.get(BodyPart.EYES, 0)
-        if eyes_score > 0 and self._exercises_by_part.get(BodyPart.EYES):
+        if eyes_score > 0 and any(ex.type == ExerciseType.EYES for ex in self._exercises):
             eyes_routine = self._create_eyes_routine(routine_order)
             if eyes_routine is not None:
                 routines.append(eyes_routine)

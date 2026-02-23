@@ -13,7 +13,7 @@ import logging
 
 from app.core.config import RoutineTimePolicy
 from app.core.exceptions import RoutineValidationError
-from app.domain.exercise import BodyPart, ExerciseType
+from app.domain.exercise import ExerciseType
 from app.domain.routine import Routine, RoutineList, RoutineStep
 from app.domain.routinestep_factory import (
     copy_routine_step,
@@ -74,7 +74,7 @@ class CoreResponseBuilder:
         )
 
         # 1. exerciseId → type 매핑 (데이터 일치 검증용)
-        self._exercise_type_by_id: dict[int, str | None] = {
+        self._exercise_type_by_id: dict[int, ExerciseType] = {
             ex.exerciseId: ex.type for ex in exercise_repository._exercises
         }
 
@@ -231,7 +231,7 @@ class CoreResponseBuilder:
         self, steps: list[RoutineStep], routine_order: int
     ) -> list[RoutineStep]:
         """
-        1. type 일치 검증 (DURATION | REPS | None(EYES))
+        1. type 일치 검증 (DURATION | REPS | EYES)
         2. DURATION / REPS 각각의 필드 규칙 검증
 
         Raise:
@@ -420,11 +420,11 @@ class CoreResponseBuilder:
         return result_steps
 
     def _is_eyes_only_routine(self, steps: list[RoutineStep]) -> bool:
-        """EYES 전용 루틴인지 판별 (모든 스텝이 EYES bodyPart)"""
+        """EYES 전용 루틴인지 판별 (모든 스텝이 EYES 타입)"""
         for step in steps:
             exercise = self._exercise_by_id.get(step.exerciseId)
 
-            if exercise is None or exercise.bodyPart != BodyPart.EYES:
+            if exercise is None or exercise.type != ExerciseType.EYES:
                 return False
 
         return len(steps) > 0

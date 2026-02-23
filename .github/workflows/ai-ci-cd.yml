@@ -31,14 +31,11 @@ jobs:
       - name: Install uv
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
-      # 4. 의존성 설치 (CI용 - CPU PyTorch)
-      # CPU 버전으로 설치
+      # 4. 의존성 설치 (CI용 - uv.lock 기반)
       - name: Install Dependencies
         run: |
-          uv pip install --system \
-            --index-url https://download.pytorch.org/whl/cpu \
-            --extra-index-url https://pypi.org/simple \
-            -r requirements.txt
+          uv sync --frozen --no-dev
+          # 필요한 툴 설치
           uv pip install --system ruff pytest httpx
 
       # Phase 1: Lint (Ruff)

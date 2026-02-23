@@ -17,11 +17,11 @@ ENV VIRTUAL_ENV=/app/.venv
 RUN uv venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# 의존성 복사 및 설치
-COPY requirements.txt .
-RUN uv pip install --no-cache -r requirements.txt \
-    --index-url https://download.pytorch.org/whl/cpu \
-    --extra-index-url https://pypi.org/simple
+# 의존성 파일 복사
+COPY pyproject.toml uv.lock ./
+
+# 의존성 설치 (pyproject.toml에 정의된 인덱스 정보를 따름)
+RUN uv sync --frozen --no-dev --no-install-project
 
 # ========== Runtime Stage (프로덕션) ==========
 FROM python:3.11-slim

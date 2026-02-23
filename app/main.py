@@ -1,4 +1,5 @@
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -6,9 +7,10 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import ValidationError
 
 from app.api.v1.router import router as v1_router
+from app.api.v2.router import router as v2_router
 from app.core.exceptions import (
     AppError,  # 500
-    app_error_handler,  # 새로 추가: AppError 통합 핸들러
+    app_error_handler,  # AppError 통합 핸들러
     internal_exception_handler,  # 500
     validation_exception_handler,  # 422
 )
@@ -19,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 # 1. 로깅 설정
 setup_logging()
+
+logger.info("APP_ENV=%s", os.environ.get("APP_ENV", "dev"))
 
 # 2. 운동 데이터 로드 (settings.EXERCISE_API_URL 사용)
 try:
@@ -43,8 +47,9 @@ except Exception as e:
 
 app = FastAPI(
     title="Recommendation API",
-    version="1.0.0",
+    version="1.1.0",
 )
+
 
 Instrumentator().instrument(app).expose(app)
 
@@ -54,6 +59,7 @@ app.add_exception_handler(Exception, internal_exception_handler)  # 마지막: f
 
 
 app.include_router(v1_router, prefix="/api/v1")
+app.include_router(v2_router, prefix="/api/v2")
 
 
 @app.get("/")

@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "dev"
 
     # Logging
-    LOG_LEVEL: str = "INFO"
+    LOG_LEVEL: str = "DEBUG"
     LOG_DIR: Path = _PROJECT_ROOT / "logs"
     LOG_FILE_NAME: str = "app.log"
     METRICS_ENABLED: bool = False
@@ -54,11 +54,26 @@ class Settings(BaseSettings):
     API_KEY: str | None = None
 
     # Exercise Data
-    EXERCISE_API_URL: str = "https://dev.raisedeveloper.com/api/exercises"
+    EXERCISE_API_URL: str | None = None
     EXERCISES_PATH: Path = _DEFAULT_EXERCISES_PATH
+
+    # Callback
+    CALLBACK_URL: str | None = None
 
 
 settings = Settings()
+
+
+class CallbackPolicy:
+    """
+    콜백 전송 정책
+
+    - TIMEOUT_SEC: 콜백 HTTP 요청 타임아웃 (초)
+    - MAX_RETRIES: 최대 재시도 횟수 (초기 시도 제외)
+    """
+
+    TIMEOUT_SEC: int = 10
+    MAX_RETRIES: int = 1
 
 
 class RoutineTimePolicy:

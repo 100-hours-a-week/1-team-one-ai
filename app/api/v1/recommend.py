@@ -3,7 +3,7 @@
 """
 추천 API (v1)
 - get_recommend_service(): RecommendService 의존성 주입
-- get_response_builder(): ResponseBuilder 의존성 주입
+- get_response_builder(): V1ResponseBuilder 의존성 주입
 - POST /routines: 운동 루틴 추천
 
 Raise:
@@ -28,8 +28,8 @@ from app.schemas.v1.request import UserInputV1
 from app.schemas.v1.response import RecommendationResponseV1
 from app.services.llm_clients.ollama_client import OllamaClient
 from app.services.llm_clients.openai_client import OpenAIClient
-from app.services.recommend_service import RecommendService
-from app.services.response_builder import ResponseBuilder
+from app.services.recommend.recommend_service import RecommendService
+from app.services.response.v1 import V1ResponseBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -66,18 +66,18 @@ def get_recommend_service() -> RecommendService:
     return RecommendService(llm_client=llm_client, exercises=exercises)
 
 
-def get_response_builder() -> ResponseBuilder:
+def get_response_builder() -> V1ResponseBuilder:
     """
-    응답 빌더 인스턴스 생성 : ResponseBuilder 의존성 주입 함수
+    응답 빌더 인스턴스 생성 : V1ResponseBuilder 의존성 주입 함수
     """
-    return ResponseBuilder(valid_exercise_ids=exercise_repository.exercise_ids)
+    return V1ResponseBuilder(valid_exercise_ids=exercise_repository.exercise_ids)
 
 
 @router.post("/routines", response_model=RecommendationResponseV1)
 def recommend(
     user_input: UserInputV1,
     service: RecommendService = Depends(get_recommend_service),
-    builder: ResponseBuilder = Depends(get_response_builder),
+    builder: V1ResponseBuilder = Depends(get_response_builder),
 ) -> RecommendationResponseV1:
     """
     운동 루틴 추천 API (v1)
@@ -96,11 +96,11 @@ def recommend(
     - RecommendService
         - llm_client
         - exercises
-    - ResponseBuilder
+    - V1ResponseBuilder
         - valid_exercise_ids
         - llm_client
     """
-    logger.info("추천 요청 수신: routineCount=%d", user_input.surveyData.routineCount)
+    logger.info("V1 추천 요청 수신: routineCount=%d", user_input.surveyData.routineCount)
 
     # taskId는 요청 진입 시점에 생성 (향후 비동기 처리 대비)
     task_id = uuid4().hex

@@ -4,14 +4,15 @@
 .ruff_cache/
 __pycache__/
 /pytest_cache/
-.env.dev
-.env.live
-logs/
 
-app/api/v2/
+.env.dev
+.env.prod
+.env.stage
+
+logs/
 app/api/v3/
-app/schemas/v2
 examples/
 scripts/
 tests/pilot/
 CLAUDE.md
+app/data/exercises.json

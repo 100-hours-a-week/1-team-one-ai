@@ -15,13 +15,13 @@ from pathlib import Path
 import httpx
 
 from app.core.config import settings
-from app.schemas.v1.exercise import Exercise
+from app.domain.exercise import BaseExercise
 
 logger = logging.getLogger(__name__)
 
 
 def fetch_and_save_exercises(
-    url: str = settings.EXERCISE_API_URL,
+    url: str | None = settings.EXERCISE_API_URL,
     path: Path = settings.EXERCISES_PATH,
 ) -> None:
     """
@@ -36,6 +36,10 @@ def fetch_and_save_exercises(
     - ValueError: 잘못된 응답 형식
     - 일단은 다 raise error 하고 main에서 try/catch로 처리
     """
+
+    if not url:
+        raise ValueError("EXERCISE_API_URL이 설정되지 않았습니다.")
+
     try:
         response = httpx.get(
             url,
@@ -86,7 +90,7 @@ class ExerciseRepository:
     - raw dict 데이터 제공 (LLM 프롬프트용)
     """
 
-    _exercises: tuple[Exercise, ...] = field(default_factory=tuple)
+    _exercises: tuple[BaseExercise, ...] = field(default_factory=tuple)
     _exercise_ids: frozenset[int] = field(default_factory=frozenset)
     _raw_data: list[dict] = field(default_factory=list)
     _loaded: bool = False
@@ -121,7 +125,7 @@ class ExerciseRepository:
             data: list[dict] = json.load(f)
 
         # Pydantic 검증 - 실패 시 raise error & 로드 중단
-        exercises = tuple(Exercise.model_validate(e) for e in data)
+        exercises = tuple(BaseExercise.model_validate(e) for e in data)
 
         # 캐싱
         self._exercises = exercises

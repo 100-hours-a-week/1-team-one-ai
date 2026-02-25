@@ -47,10 +47,6 @@ on:
         required: true
       AWS_ROLE_ARN:
         required: true
-      STG_ALB_DNS:
-        required: true
-      PROD_ALB_DNS:
-        required: true
 
 permissions:
   id-token: write
@@ -279,7 +275,7 @@ jobs:
 
           echo "Found instance $INSTANCE_ID. Sending SSM command..."
           
-          # 2. 인스턴스 내부 요원에게 자가 진단(localhost:8000/health) 명령 하달!
+          # 2. 인스턴스 내부 요원에게 자가 진단(localhost:8000/api/v1/health) 명령 하달!
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \

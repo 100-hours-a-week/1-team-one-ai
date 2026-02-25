@@ -25,7 +25,7 @@ class RoutineStep(BaseModel):
     targetReps: Optional[int] = Field(
         None, ge=0, description="횟수 기반 운동일 경우 목표 반복 횟수"
     )
-    side: Optional[Side] = Field(None, description="양측 운동의 경우 방향 (왼쪽/오른쪽)")
+    side: Optional[Side] = Field(None, exclude=True, description="양측 운동의 경우 방향 (왼쪽/오른쪽)")
 
     model_config = ConfigDict(extra="forbid")
 

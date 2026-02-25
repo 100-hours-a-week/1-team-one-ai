@@ -1646,5 +1646,158 @@
     "bodyPart": "lowerBack",
     "difficulty": 2,
     "tags": "허리 불편함,요추 통증,장시간 앉아있음,반복 작업,중저강도,회복용"
+  },
+  {
+    "id": 64,
+    "name": "  ",
+    "content": "               .",
+    "effect": "           ",
+    "type": "EYES",
+    "pose": {
+      "keyFrames": [
+        {
+          "x": 0.9,
+          "y": 0.5,
+          "phase": "follow1",
+          "holdMs": 900
+        },
+        {
+          "x": 0.5,
+          "y": 0.5,
+          "phase": "follow2",
+          "holdMs": 900
+        },
+        {
+          "x": 0.1,
+          "y": 0.5,
+          "phase": "follow3",
+          "holdMs": 900
+        },
+        {
+          "x": 0.1,
+          "y": 0.1,
+          "phase": "follow4",
+          "holdMs": 1200
+        },
+        {
+          "x": 0.5,
+          "y": 0.1,
+          "phase": "follow5",
+          "holdMs": 900
+        },
+        {
+          "x": 0.9,
+          "y": 0.1,
+          "phase": "follow6",
+          "holdMs": 900
+        },
+        {
+          "x": 0.9,
+          "y": 0.5,
+          "phase": "follow7",
+          "holdMs": 1200
+        },
+        {
+          "x": 0.9,
+          "y": 0.9,
+          "phase": "follow8",
+          "holdMs": 1200
+        },
+        {
+          "x": 0.5,
+          "y": 0.9,
+          "phase": "follow9",
+          "holdMs": 900
+        },
+        {
+          "x": 0.1,
+          "y": 0.9,
+          "phase": "follow10",
+          "holdMs": 900
+        },
+        {
+          "x": 0.1,
+          "y": 0.5,
+          "phase": "follow11",
+          "holdMs": 1200
+        },
+        {
+          "x": 0.1,
+          "y": 0.1,
+          "phase": "follow12",
+          "holdMs": 1200
+        },
+        {
+          "x": 0.5,
+          "y": 0.5,
+          "phase": "follow13",
+          "holdMs": 1200
+        },
+        {
+          "x": 0.9,
+          "y": 0.9,
+          "phase": "follow14",
+          "holdMs": 1200
+        },
+        {
+          "x": 0.5,
+          "y": 0.9,
+          "phase": "follow15",
+          "holdMs": 900
+        },
+        {
+          "x": 0.1,
+          "y": 0.9,
+          "phase": "follow16",
+          "holdMs": 900
+        },
+        {
+          "x": 0.5,
+          "y": 0.5,
+          "phase": "follow17",
+          "holdMs": 1200
+        },
+        {
+          "x": 0.9,
+          "y": 0.1,
+          "phase": "follow18",
+          "holdMs": 1200
+        },
+        {
+          "x": 1.0,
+          "y": 0.5,
+          "phase": "hold1",
+          "holdMs": 10000
+        },
+        {
+          "x": 0.0,
+          "y": 0.5,
+          "phase": "hold2",
+          "holdMs": 10000
+        },
+        {
+          "x": 0.5,
+          "y": 0.0,
+          "phase": "hold3",
+          "holdMs": 10000
+        },
+        {
+          "x": 0.5,
+          "y": 1.0,
+          "phase": "hold4",
+          "holdMs": 10000
+        },
+        {
+          "x": 0.5,
+          "y": 0.5,
+          "phase": "close1",
+          "holdMs": 10000
+        }
+      ],
+      "totalDurationMs": 68900
+    },
+    "bodyPart": "eyes",
+    "difficulty": 2,
+    "tags": ",,,,,"
   }
 ]

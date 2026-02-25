@@ -16,7 +16,7 @@ class RoutineStep(BaseModel):
     """
 
     exerciseId: int = Field(..., description="운동 ID")
-    type: Optional[ExerciseType] = Field(..., description="운동 수행 방식 REPS | DURATION | None")
+    type: ExerciseType = Field(..., description="운동 수행 방식 REPS | DURATION | EYES")
     stepOrder: int = Field(..., ge=1, description="루틴 내 순서")
     limitTime: int = Field(..., ge=0, description="해당 스텝 제한 시간(초)")
     durationTime: Optional[int] = Field(
@@ -25,7 +25,7 @@ class RoutineStep(BaseModel):
     targetReps: Optional[int] = Field(
         None, ge=0, description="횟수 기반 운동일 경우 목표 반복 횟수"
     )
-    side: Optional[Side] = Field(None, description="양측 운동의 경우 방향 (왼쪽/오른쪽)")
+    side: Optional[Side] = Field(None, exclude=True, description="양측 운동의 경우 방향 (왼쪽/오른쪽)")
 
     model_config = ConfigDict(extra="forbid")
 
@@ -42,6 +42,12 @@ class RoutineStep(BaseModel):
                 raise ValueError("DURATION 타입 운동은 durationTime이 필수입니다.")
             if self.targetReps is not None:
                 raise ValueError("DURATION 타입 운동은 targetReps를 가질 수 없습니다.")
+
+        elif self.type == ExerciseType.EYES:
+            if self.durationTime is not None:
+                raise ValueError("EYES 타입 운동은 durationTime을 가질 수 없습니다.")
+            if self.targetReps is not None:
+                raise ValueError("EYES 타입 운동은 targetReps를 가질 수 없습니다.")
 
         return self
 

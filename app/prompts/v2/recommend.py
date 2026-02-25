@@ -3,7 +3,7 @@
 """
 운동 루틴 추천용 프롬프트 V2 (Body + EYES 운동)
 - EYES 운동은 별도의 루틴으로 분리
-- type: null (EYES) 처리 규칙 추가
+- type: "EYES" 처리 규칙 추가
 """
 
 from pathlib import Path
@@ -21,14 +21,14 @@ You are an exercise routine recommendation assistant.
 ## Strict Rules
 1. Output ONLY valid JSON. No markdown, no comments, no extra text.
 2. Use ONLY id values from "Available Exercises". NEVER invent new IDs.
-3. Copy the "type" field exactly from the exercise data. Do NOT change REPS to DURATION or vice versa. type can be "REPS", "DURATION", or null.
+3. Copy the "type" field exactly from the exercise data. Do NOT change REPS to DURATION or vice versa. type can be "REPS", "DURATION", or "EYES".
 4. If type is DURATION: set durationTime (seconds), set targetReps to null. Please refer to PoseReferenceSpec.totalDuration.
 5. If type is REPS: set targetReps (count), set durationTime to null.
-6. If type is null (EYES exercise): set both durationTime and targetReps to null. limitTime should be pose.totalDurationMs / 1000 + 20.
+6. If type is "EYES": set both durationTime and targetReps to null. limitTime should be pose.totalDurationMs / 1000 + 20.
 7. Each routine must have 3-5 steps (except EYES-only routines, which may have fewer).
 
 ## EYES Exercise Rule (MANDATORY)
-- EYES exercises (bodyPart: "eyes", type: null) have a completely different pose structure from body exercises.
+- EYES exercises (type: "EYES") have a completely different pose structure from body exercises.
 - If the user survey indicates eye fatigue/pain, create a SEPARATE routine containing ONLY EYES exercise(s).
 - NEVER mix EYES exercises with body exercises (neck, shoulder, wrist, lowerBack) in the same routine.
 - An EYES-only routine counts as one of the requested routines.
@@ -65,7 +65,7 @@ You are an exercise routine recommendation assistant.
 - [ ] Every id exists in Available Exercises?
 - [ ] Every type matches the original exercise type?
 - [ ] DURATION exercises have durationTime, REPS exercises have targetReps?
-- [ ] type=null (EYES) exercises have durationTime=null and targetReps=null?
+- [ ] EYES exercises have durationTime=null and targetReps=null?
 - [ ] EYES exercises are in a separate routine, NOT mixed with body exercises?
 - [ ] All left/right exercises are included as complete pairs?
 - [ ] Reason contains NO numbers, NO survey scores, NO system-like phrasing?
@@ -80,11 +80,11 @@ OUTPUT_SCHEMA = """\
       "steps": [
         {
           "exerciseId": "<int, Available Exercises에 존재하는 ID만 사용 가능>",
-          "type": "<string|null, 해당 운동의 원본 type을 그대로 복사. REPS, DURATION, 또는 null(EYES)>",
+          "type": "<string, 해당 운동의 원본 type을 그대로 복사. REPS, DURATION, 또는 EYES>",
           "stepOrder": <int, 루틴 내 운동 순서, 1부터 시작>,
-          "limitTime": <int, 이 스텝에 허용된 최대 시간(초). DURATION: pose.totalDuration + 20. REPS: 50~60. EYES(null): pose.totalDurationMs / 1000 + 20.>,
-          "durationTime": <int | null, type이 DURATION일 때 실제 수행 시간(초). PoseReferenceSpec.totalDuration과 동일해야 함. REPS/null이면 null>,
-          "targetReps": <int|null, type이 REPS일 때 목표 반복 횟수. DURATION/null이면 null>
+          "limitTime": <int, 이 스텝에 허용된 최대 시간(초). DURATION: pose.totalDuration + 20. REPS: 50~60. EYES: pose.totalDurationMs / 1000 + 20.>,
+          "durationTime": <int | null, type이 DURATION일 때 실제 수행 시간(초). PoseReferenceSpec.totalDuration과 동일해야 함. REPS/EYES이면 null>,
+          "targetReps": <int|null, type이 REPS일 때 목표 반복 횟수. DURATION/EYES이면 null>
         }
       ]
     }

@@ -74,13 +74,13 @@ def find_bilateral_pair(
 def _get_eyes_limit_time(exercise: BaseExercise, default: int = 70) -> int:
     """
     EYES 운동의 limitTime을 pose.totalDurationMs에서 계산.
-    totalDurationMs(밀리초) → 초 변환 후 +20초 버퍼.
+    (totalDurationMs + 6500) / 1000 → 초 단위.
     pose 데이터가 없으면 기본값(70초) 사용.
     """
     if isinstance(exercise.pose, dict):
         total_ms = exercise.pose.get("totalDurationMs")
         if isinstance(total_ms, (int, float)) and total_ms > 0:
-            return int(total_ms / 1000) + 20
+            return int((total_ms + 6500) / 1000)
     return default
 
 

@@ -157,6 +157,8 @@ class CoreResponseBuilder:
         1. 스텝 유효성 검증
         2. exerciseId 유효성 검증
         3. 그 exerciseId의 운동 데이터가 실제 정보와 일치하는지
+        3-a. EYES + body part 혼합 루틴 필터링 (EYES 우선, body 제거 후 reason 초기화)
+        3-b. EYES 전용 루틴 스텝 수 상한 적용 (최대 1개)
         4. Bilateral Exercise Rule 준수 여부
         5. PoseReferenceSpec.totalDuration == RoutineStep.durationTime 검증 및 맞추기
         6. limitTime 검증
@@ -179,6 +181,12 @@ class CoreResponseBuilder:
         # 3. exerciseId의 운동 데이터 type 및 각각의 field rule 검증
         steps = self._validate_exercise_data(steps, routine.routineOrder)
 
+        # 3-a. EYES + body part 혼합 루틴 필터링 (EYES 우선, body 제거)
+        steps, mixed_converted = self._validate_eyes_mixing(steps, routine_order)
+
+        # 3-b. EYES 전용 루틴 스텝 수 상한 적용 (최대 1개)
+        steps = self._validate_eyes_step_count(steps, routine_order)
+
         # 4. Bilateral Exercise Rule 준수 여부 검증 및 보정 (+/-)
         fixed_steps = self._validate_bilateral_exercise_rule(steps, routine_order)
 
@@ -192,9 +200,13 @@ class CoreResponseBuilder:
         fixed_steps = self._reorder_steps(fixed_steps)
 
         # routineOrder 보정
+        # 혼합 루틴이 EYES 전용으로 변환된 경우 reason을 기본값으로 초기화
+        reason = (
+            "눈 피로 해소를 위한 눈 운동 루틴입니다." if mixed_converted else routine.reason
+        )
         return Routine(
             routineOrder=routine_order,
-            reason=routine.reason,
+            reason=reason,
             steps=fixed_steps,
         )
 
@@ -428,6 +440,60 @@ class CoreResponseBuilder:
                 return False
 
         return len(steps) > 0
+
+    def _validate_eyes_mixing(
+        self, steps: list[RoutineStep], routine_order: int
+    ) -> tuple[list[RoutineStep], bool]:
+        """
+        EYES 타입과 body part 타입이 혼합된 루틴에서 body 스텝 제거 (EYES 우선).
+
+        - EYES + body part 혼합 루틴: body 스텝 제거 후 EYES 스텝만 유지
+        - EYES 전용 또는 body part 전용 루틴: 그대로 반환
+
+        Returns:
+        - (steps, mixed_converted): 보정된 스텝 리스트, 혼합 → EYES 전용으로 변환됐는지 여부
+        """
+        eyes_steps = [
+            s for s in steps
+            if self._exercise_type_by_id.get(s.exerciseId) == ExerciseType.EYES
+        ]
+        body_steps = [
+            s for s in steps
+            if self._exercise_type_by_id.get(s.exerciseId) != ExerciseType.EYES
+        ]
+
+        if eyes_steps and body_steps:
+            logger.warning(
+                "루틴 %d: EYES + body part 혼합 루틴 감지 - body 스텝 %d개 제거, EYES 스텝 %d개 유지",
+                routine_order,
+                len(body_steps),
+                len(eyes_steps),
+            )
+            return eyes_steps, True
+
+        return steps, False
+
+    def _validate_eyes_step_count(
+        self, steps: list[RoutineStep], routine_order: int
+    ) -> list[RoutineStep]:
+        """
+        EYES 전용 루틴의 스텝 수를 1개로 제한.
+
+        - EYES 전용 루틴에서 스텝이 2개 이상이면 첫 번째 스텝만 유지
+        - EYES 전용 루틴이 아니면 그대로 반환
+        """
+        if not self._is_eyes_only_routine(steps):
+            return steps
+
+        if len(steps) <= 1:
+            return steps
+
+        logger.warning(
+            "루틴 %d: EYES 전용 루틴 스텝 수 초과 (%d개) - 첫 번째 스텝만 유지",
+            routine_order,
+            len(steps),
+        )
+        return steps[:1]
 
     def _validate_total_time(
         self, steps: list[RoutineStep], routine_order: int

@@ -7,7 +7,7 @@ V2 추천 API (비동기 콜백 + 폴링)
 교체 가능한 의존성 (get_* DI 함수만 수정하면 엔드포인트 코드 변경 불필요):
 - TaskStore         : get_task_store()         → InMemoryTaskStore / RedisTaskStore
 - TaskExecutor      : get_task_executor()      → BackgroundTaskExecutor / CeleryTaskExecutor
-- ColdStartChecker  : get_cold_start_checker() → DefaultColdStartChecker
+- ColdStartChecker  : get_cold_start_checker() → DefaultColdStartChecker / ActivityBasedColdStartChecker
 """
 
 import logging
@@ -43,7 +43,10 @@ router = APIRouter()
 # TODO: Task Executor 교체: BackgroundTaskExecutor → CeleryTaskExecutor
 _task_store: TaskStore = InMemoryTaskStore()
 _callback_client = CallbackClient()
-# TODO: Cold Start checker 교체: DefaultColdStartChecker → 실제 구현체
+# TODO: Qdrant 연동 완료 후 ActivityBasedColdStartChecker 로 교체:
+#   from app.services.user_activity.activity_service import UserActivityService
+#   from app.services.recommend.cold_start_checker import ActivityBasedColdStartChecker
+#   _cold_start_checker = ActivityBasedColdStartChecker(UserActivityService(...))
 _cold_start_checker: ColdStartChecker = DefaultColdStartChecker()
 
 

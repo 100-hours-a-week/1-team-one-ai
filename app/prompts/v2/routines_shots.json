@@ -6,7 +6,7 @@
             "steps": [
                 {
                     "exerciseId": 62,
-                    "type": null,
+                    "type": "EYES",
                     "stepOrder": 1,
                     "limitTime": 70,
                     "durationTime": null,

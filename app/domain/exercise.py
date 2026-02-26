@@ -14,6 +14,7 @@ class ExerciseType(str, Enum):
 
     REPS = "REPS"
     DURATION = "DURATION"
+    EYES = "EYES"
 
 
 class DifficultyLevel(int, Enum):
@@ -68,9 +69,7 @@ class BaseExercise(BaseModel):
 
     difficulty: DifficultyLevel = Field(..., description="난이도 (1~3)")
     tags: str = Field(..., description="운동 관련 태그 (comma-separated string)")
-    type: Optional[ExerciseType] = Field(
-        default=None, description="운동 수행 방식: REPS / DURATION (눈운동은 None)"
-    )
+    type: ExerciseType = Field(..., description="운동 수행 방식: REPS / DURATION / EYES")
 
     bodyPart: BodyPart = Field(..., description="주 사용 부위")
     pose: Any = Field(..., description="운동 자세 정보 (버전별 타입 상이)")

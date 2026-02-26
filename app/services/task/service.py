@@ -154,6 +154,13 @@ class TaskService:
                     survey=survey, user_id=user_id
                 )
 
+            logger.debug(
+                "LLM raw data(Cold start) [task_id=%s, user_id=%d]: %s",
+                task_id,
+                user_id,
+                llm_output,
+            )
+
             # Step 2: 결과 검증 + V2 응답 빌드 (TaskResult 직접 생성)
             self._update_progress(task_id, ProgressStep.RESULT_VALIDATION)
             result = self._response_builder.build(

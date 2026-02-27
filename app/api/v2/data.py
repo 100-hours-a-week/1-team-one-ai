@@ -2,7 +2,7 @@
 
 """
 임베딩용 데이터 관리 API
-- POST /update/users    : 사용자 데이터 강제 업데이트 (TODO: 사용자 벡터 upsert)
+- POST /update/users    : coreBE 배치 집계 프로필 수신 → 벡터DB upsert (Qdrant 미연결 시 silent skip)
 - POST /update/exercises: 운동 데이터 강제 업데이트 + 벡터DB upsert (Qdrant 미연결 시 silent skip)
 """
 
@@ -10,9 +10,12 @@ import logging
 
 from fastapi import APIRouter
 
+from app.core.config import settings
 from app.core.exceptions import AppError
 from app.data.loader import exercise_repository, fetch_and_save_exercises
+from app.schemas.v2.user_activity import BatchProfileRequest
 from app.services.exercise_vector_service import ExerciseVectorService
+from app.services.user_activity.profile_service import UserActivityProfileService
 
 logger = logging.getLogger(__name__)
 
@@ -28,33 +31,82 @@ def _create_exercise_vector_service() -> ExerciseVectorService:
     """
     ExerciseVectorService 싱글턴 생성.
 
-    TODO: Qdrant 연동 완료 후 아래 주석 해제 및 None → 실제 인스턴스로 교체:
+    - Qdrant 연결 실패 또는 임베딩 모델 로드 실패 시 WARNING 후 비활성화 상태로 반환
+    - 비활성화 상태에서 try_upsert_all() 호출 시 조용히 건너뜀 (API 영향 없음)
 
-        from sentence_transformers import SentenceTransformer
-        from qdrant_client import QdrantClient
-        from app.data.exercise_vector_repository import QdrantExerciseVectorRepository
-        from app.core.config import settings
-
-        client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
-        model  = SentenceTransformer("snunlp/KR-ELECTRA-discriminator")
-        repo   = QdrantExerciseVectorRepository(client)
-        return ExerciseVectorService(repository=repo, embedding_model=model)
+    환경변수:
+      QDRANT_URL              : 연결 대상 (기본 http://localhost:6333)
+      QDRANT_API_KEY          : 클라우드 인스턴스용 (로컬 생략)
+      QDRANT_EMBEDDING_MODEL  : 임베딩 모델명 (기본 snunlp/KR-ELECTRA-discriminator)
     """
-    return ExerciseVectorService(repository=None, embedding_model=None)
+    try:
+        from sentence_transformers import SentenceTransformer
+
+        from app.data.exercise_vector_repository import QdrantExerciseVectorRepository
+        from app.data.qdrant_client import get_qdrant_client
+
+        client = get_qdrant_client()
+        model = SentenceTransformer(settings.QDRANT_EMBEDDING_MODEL)
+        repo = QdrantExerciseVectorRepository(client)
+        logger.info(
+            "ExerciseVectorService 초기화 완료 [url=%s, model=%s]",
+            settings.QDRANT_URL,
+            settings.QDRANT_EMBEDDING_MODEL,
+        )
+        return ExerciseVectorService(repository=repo, embedding_model=model)
+
+    except Exception as e:
+        logger.warning("ExerciseVectorService 초기화 실패 — 벡터 upsert 비활성화: %s", e)
+        return ExerciseVectorService(repository=None, embedding_model=None)
 
 
 _exercise_vector_service = _create_exercise_vector_service()
 
 
 # ============================================================
-# 에러 정의
+# UserActivityProfileService 싱글턴
 # ============================================================
 
 
-class UserDataError(AppError):
-    """사용자 데이터 fetch 실패 - 500"""
+def _create_user_activity_profile_service() -> UserActivityProfileService:
+    """
+    UserActivityProfileService 싱글턴 생성.
 
-    error_code = "USER_DATA_ERROR"
+    - Qdrant 연결 실패 또는 임베딩 모델 로드 실패 시 WARNING 후 비활성화 상태로 반환
+    - 비활성화 상태에서 try_upsert_batch() 호출 시 조용히 건너뜀 (API 영향 없음)
+
+    환경변수:
+      QDRANT_URL              : 연결 대상 (기본 http://localhost:6333)
+      QDRANT_API_KEY          : 클라우드 인스턴스용 (로컬 생략)
+      QDRANT_EMBEDDING_MODEL  : 임베딩 모델명 (기본 intfloat/multilingual-e5-small)
+    """
+    try:
+        from sentence_transformers import SentenceTransformer
+
+        from app.data.qdrant_client import get_qdrant_client
+        from app.data.user_activity_repository import QdrantUserActivityRepository
+
+        client = get_qdrant_client()
+        model = SentenceTransformer(settings.QDRANT_EMBEDDING_MODEL)
+        repo = QdrantUserActivityRepository(client)
+        logger.info(
+            "UserActivityProfileService 초기화 완료 [url=%s, model=%s]",
+            settings.QDRANT_URL,
+            settings.QDRANT_EMBEDDING_MODEL,
+        )
+        return UserActivityProfileService(repository=repo, embedding_model=model)
+
+    except Exception as e:
+        logger.warning("UserActivityProfileService 초기화 실패 — 벡터 upsert 비활성화: %s", e)
+        return UserActivityProfileService(repository=None, embedding_model=None)
+
+
+_user_activity_profile_service = _create_user_activity_profile_service()
+
+
+# ============================================================
+# 에러 정의
+# ============================================================
 
 
 class ExerciseDataError(AppError):
@@ -69,31 +121,20 @@ class ExerciseDataError(AppError):
 
 
 @router.post("/update/users")
-async def update_users() -> dict:
+async def update_users(body: BatchProfileRequest) -> dict:
     """
-    사용자 데이터를 외부 API에서 다시 가져와 벡터DB 업데이트.
+    coreBE 배치 스케줄러로부터 집계된 사용자 활동 프로필을 수신하여 벡터DB upsert.
+
+    흐름:
+    1. coreBE가 DB 집계 후 배치 타이밍에 이 엔드포인트를 호출
+    2. 각 프로필을 passage로 변환 → 임베딩 → Qdrant upsert
+    3. Qdrant 미연결 시 WARNING 로그 후 silent skip (응답에 영향 없음)
 
     Returns:
-        200: {"status": "ok", "count": N}
-        500: {"code": "USER_DATA_ERROR", "errors": [...]}
+        200: {"status": "ok", "upserted": N}
     """
-    try:
-        # TODO: 사용자 데이터 fetching & embedding - UserActivityService.build_and_upsert()로 교체
-        fetch_and_save_exercises()
-
-    except Exception as e:
-        logger.error("사용자 데이터 fetch 실패: %s", e)
-        raise UserDataError(f"사용자 데이터 fetch 실패: {e}") from e
-
-    try:
-        exercise_repository.load()
-
-    except Exception as e:
-        logger.error("사용자 데이터 load 실패: %s", e)
-        raise UserDataError(f"사용자 데이터 load 실패: {e}") from e
-
-    # TODO: 리턴값도 user vector update에 걸맞게 수정
-    return {"status": "ok", "count": len(exercise_repository.exercise_ids)}
+    upserted = _user_activity_profile_service.try_upsert_batch(body.profiles)
+    return {"status": "ok", "upserted": upserted}
 
 
 @router.post("/update/exercises")

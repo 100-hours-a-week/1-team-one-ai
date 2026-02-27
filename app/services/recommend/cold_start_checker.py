@@ -16,7 +16,7 @@ import logging
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from app.services.user_activity.activity_service import UserActivityService
+    from app.data.user_activity_repository import UserActivityRepository
 
 logger = logging.getLogger(__name__)
 
@@ -48,22 +48,20 @@ class ActivityBasedColdStartChecker:
     """
     Qdrant 사용자 활동 프로필 존재 여부 기반 cold start 판단.
 
-    UserActivityService.is_non_cold_state()를 위임하여 판단합니다.
+    UserActivityRepository.exists()로 직접 판단합니다.
     - Qdrant에 해당 user_id의 프로필이 존재 → non-cold (False)
     - 존재하지 않음                          → cold start (True)
 
-    교체 시점:
-    - Qdrant 연동 및 UserActivityRepository 구현 완료 후
-    - app/api/v2/recommend.py 의 _cold_start_checker 를 이 구현체로 교체
-
-    TODO: Qdrant 연동 완료 후 DefaultColdStartChecker 대신 이 구현체 사용
+    TODO: app/api/v2/recommend.py 의 _cold_start_checker 를
+          DefaultColdStartChecker → ActivityBasedColdStartChecker 로 교체
+          (POST /update/users 배치 upsert가 충분히 쌓인 후 활성화)
     """
 
-    def __init__(self, activity_service: UserActivityService) -> None:
-        self._activity_service = activity_service
+    def __init__(self, repository: UserActivityRepository) -> None:
+        self._repository = repository
 
     def is_cold_start(self, user_id: int) -> bool:
-        is_non_cold = self._activity_service.is_non_cold_state(user_id)
+        is_non_cold = self._repository.exists(user_id)
         logger.debug(
             "Cold start 판단 [user_id=%d]: %s (활동 프로필 기반)",
             user_id,

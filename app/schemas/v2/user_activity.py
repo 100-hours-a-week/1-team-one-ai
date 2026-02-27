@@ -1,64 +1,61 @@
 # app/schemas/v2/user_activity.py
 """
-coreBE로부터 받는 API response body 스키마
-UserActivityApiResponse (exerciseResults, routineSteps, exerciseSessions)
+coreBE 배치 스케줄러로부터 받는 사용자 활동 프로필 스키마.
+
+coreBE가 DB에서 직접 집계한 결과를 POST /api/v2/update/users 로 전송합니다.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Optional
-
-from pydantic import BaseModel
-
-# ── exercise_results ────────────────────────────────────────────────────────
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class ExerciseResultItem(BaseModel):
-    id: int
-    exercise_session_id: int
-    routine_step_id: int
-    status: str  # "COMPLETED" | "SKIPPED" | ...
-    accuracy: Optional[int] = None
-    start_at: Optional[datetime] = None
-    end_at: Optional[datetime] = None
-    created_at: datetime
-    updated_at: datetime
+class BodyPartRatios(BaseModel):
+    """신체 부위별 운동 비율 (합계 ≈ 1.0)"""
+
+    neck: float = 0.0
+    shoulder: float = 0.0
+    lowerBack: float = 0.0
+    wrist: float = 0.0
+    eyes: float = 0.0
 
 
-# ── routine_steps ────────────────────────────────────────────────────────────
+class ExerciseTypeRatios(BaseModel):
+    """운동 유형별 비율 (합계 ≈ 1.0)"""
+
+    DURATION: float = 0.0
+    REPS: float = 0.0
+    EYES: float = 0.0
 
 
-class RoutineStepItem(BaseModel):
-    id: int
-    routine_id: int
-    exercise_id: int
-    target_reps: Optional[int] = None
-    duration_time: Optional[int] = None
-    limit_time: int
-    step_order: int
-    created_at: datetime
+class DifficultyRatios(BaseModel):
+    """난이도별 완료 비율 (합계 ≈ 1.0). JSON 키는 "1", "2", "3"."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    level_1: float = Field(0.0, alias="1")
+    level_2: float = Field(0.0, alias="2")
+    level_3: float = Field(0.0, alias="3")
 
 
-# ── exercise_sessions ────────────────────────────────────────────────────────
+class UserProfile(BaseModel):
+    """단일 사용자 집계 프로필."""
 
-
-class ExerciseSessionItem(BaseModel):
-    id: int
-    user_id: int
-    routine_id: int
-    start_at: Optional[datetime] = None
-    end_at: Optional[datetime] = None
-    is_routine_completed: bool
-    created_at: datetime
-    updated_at: datetime
-
-
-# ── 최상위 response body ──────────────────────────────────────────────────────
-
-
-class UserActivityApiResponse(BaseModel):
     userId: int
-    exerciseResults: list[ExerciseResultItem]
-    routineSteps: list[RoutineStepItem]
-    exerciseSessions: list[ExerciseSessionItem]
+    bodyPartRatios: BodyPartRatios
+    exerciseTypeRatios: ExerciseTypeRatios
+    difficultyRatios: DifficultyRatios
+    weeklyFrequency: int
+
+
+class BatchProfileRequest(BaseModel):
+    """POST /api/v2/update/users 요청 바디."""
+
+    profiles: list[UserProfile]
+
+
+class BatchProfileResponse(BaseModel):
+    """POST /api/v2/update/users 응답 바디."""
+
+    status: str
+    upserted: int

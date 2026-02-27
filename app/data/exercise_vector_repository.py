@@ -6,16 +6,18 @@ ExerciseVectorRepository (Protocol)
   - upsert_all(points) → int
 
 QdrantExerciseVectorRepository
-  - Qdrant exercises 컬렉션에 벡터 batch upsert
-
-TODO: Qdrant 연동 시 컬렉션 초기화 로직 추가
+  - 컬렉션이 없으면 자동 생성 (벡터 차원은 첫 포인트에서 추론)
+  - Cosine 유사도 기준
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Protocol, runtime_checkable
 
 from qdrant_client import QdrantClient, models
+
+logger = logging.getLogger(__name__)
 
 COLLECTION_NAME = "exercises"
 
@@ -41,9 +43,9 @@ class QdrantExerciseVectorRepository:
     """
     ExerciseVectorRepository의 Qdrant 구현체.
 
-    - upsert_all: exerciseId(int)를 Point id로 사용 → 동일 id 재호출 시 갱신
-    - 컬렉션은 Qdrant에 미리 생성되어 있다고 가정
-      (TODO: Qdrant 연동 시 create_collection 로직 추가)
+    - upsert_all 최초 호출 시 컬렉션 자동 생성 (존재하면 skip)
+    - 벡터 차원은 첫 번째 포인트의 vector 길이에서 추론
+    - 거리 기준: Cosine (시맨틱 유사도)
     """
 
     def __init__(self, client: QdrantClient) -> None:
@@ -52,8 +54,31 @@ class QdrantExerciseVectorRepository:
     def upsert_all(self, points: list[models.PointStruct]) -> int:
         if not points:
             return 0
+
+        vector_size = len(points[0].vector)  # type: ignore[arg-type]
+        self._ensure_collection(vector_size)
+
         self._client.upsert(
             collection_name=COLLECTION_NAME,
             points=points,
         )
         return len(points)
+
+    def _ensure_collection(self, vector_size: int) -> None:
+        """컬렉션이 없으면 생성합니다."""
+        existing = {c.name for c in self._client.get_collections().collections}
+        if COLLECTION_NAME in existing:
+            return
+
+        self._client.create_collection(
+            collection_name=COLLECTION_NAME,
+            vectors_config=models.VectorParams(
+                size=vector_size,
+                distance=models.Distance.COSINE,
+            ),
+        )
+        logger.info(
+            "Qdrant 컬렉션 생성: %s (dim=%d, distance=Cosine)",
+            COLLECTION_NAME,
+            vector_size,
+        )

@@ -191,7 +191,7 @@ jobs:
           fi
           
           if [ "${{ inputs.environment }}" == "production" ]; then
-            MIN_HEALTHY=50
+            MIN_HEALTHY=100
           else
             MIN_HEALTHY=0
           fi

@@ -325,6 +325,16 @@ jobs:
           
           echo "All instances are running the correct version."
 
+      - name: Set Launch Template Default Version
+        if: success()
+        run: |
+          NEW_VERSION=${{ steps.update-lt.outputs.VERSION }}
+          echo "Setting Launch Template Default Version to $NEW_VERSION..."
+          aws ec2 modify-launch-template \
+            --launch-template-id ${{ inputs.lt_id }} \
+            --default-version $NEW_VERSION
+          echo "Launch Template Default Version Successfully Updated!"
+
       # 현재 시간 구하기 (KST)
       - name: Get Current Time
         if: always()

@@ -15,7 +15,7 @@ from app.core.exceptions import AppError
 from app.data.loader import exercise_repository, fetch_and_save_exercises
 from app.schemas.v2.user_activity import BatchProfileRequest
 from app.services.exercise_vector_service import ExerciseVectorService
-from app.services.user_activity.profile_service import UserActivityProfileService
+from app.services.user_activity.user_activity_vector_service import UserActivityVectorService
 
 logger = logging.getLogger(__name__)
 
@@ -64,13 +64,13 @@ _exercise_vector_service = _create_exercise_vector_service()
 
 
 # ============================================================
-# UserActivityProfileService 싱글턴
+# UserActivityVectorService 싱글턴
 # ============================================================
 
 
-def _create_user_activity_profile_service() -> UserActivityProfileService:
+def _create_user_activity_vector_service() -> UserActivityVectorService:
     """
-    UserActivityProfileService 싱글턴 생성.
+    UserActivityVectorService 싱글턴 생성.
 
     - Qdrant 연결 실패 또는 임베딩 모델 로드 실패 시 WARNING 후 비활성화 상태로 반환
     - 비활성화 상태에서 try_upsert_batch() 호출 시 조용히 건너뜀 (API 영향 없음)
@@ -84,24 +84,24 @@ def _create_user_activity_profile_service() -> UserActivityProfileService:
         from sentence_transformers import SentenceTransformer
 
         from app.data.qdrant_client import get_qdrant_client
-        from app.data.user_activity_repository import QdrantUserActivityRepository
+        from app.data.user_activity_repository import QdrantUserActivityVectorRepository
 
         client = get_qdrant_client()
         model = SentenceTransformer(settings.QDRANT_EMBEDDING_MODEL)
-        repo = QdrantUserActivityRepository(client)
+        repo = QdrantUserActivityVectorRepository(client)
         logger.info(
-            "UserActivityProfileService 초기화 완료 [url=%s, model=%s]",
+            "UserActivityVectorService 초기화 완료 [url=%s, model=%s]",
             settings.QDRANT_URL,
             settings.QDRANT_EMBEDDING_MODEL,
         )
-        return UserActivityProfileService(repository=repo, embedding_model=model)
+        return UserActivityVectorService(repository=repo, embedding_model=model)
 
     except Exception as e:
-        logger.warning("UserActivityProfileService 초기화 실패 — 벡터 upsert 비활성화: %s", e)
-        return UserActivityProfileService(repository=None, embedding_model=None)
+        logger.warning("UserActivityVectorService 초기화 실패 — 벡터 upsert 비활성화: %s", e)
+        return UserActivityVectorService(repository=None, embedding_model=None)
 
 
-_user_activity_profile_service = _create_user_activity_profile_service()
+_user_activity_vector_service = _create_user_activity_vector_service()
 
 
 # ============================================================
@@ -133,7 +133,7 @@ async def update_users(body: BatchProfileRequest) -> dict:
     Returns:
         200: {"status": "ok", "upserted": N}
     """
-    upserted = _user_activity_profile_service.try_upsert_batch(body.profiles)
+    upserted = _user_activity_vector_service.try_upsert_batch(body.profiles)
     return {"status": "ok", "upserted": upserted}
 
 

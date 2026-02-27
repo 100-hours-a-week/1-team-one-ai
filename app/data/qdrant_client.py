@@ -36,4 +36,5 @@ def get_qdrant_client() -> QdrantClient:
             api_key=settings.QDRANT_API_KEY or None,  # 빈 문자열도 None으로 처리 (로컬 호환)
         )
         logger.info("QdrantClient 연결: %s", settings.QDRANT_URL)
+
     return _client

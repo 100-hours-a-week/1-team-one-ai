@@ -7,7 +7,7 @@ ExerciseVectorRepository (Protocol)
 
 QdrantExerciseVectorRepository
   - 컬렉션이 없으면 자동 생성 (벡터 차원은 첫 포인트에서 추론)
-  - Cosine 유사도 기준
+  - Cosine 유사도 기준 #TODO: 향후 거리 기준을 컬렉션 단위로 유연하게 설정할 수 있도록 개선 가능
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 COLLECTION_NAME = "exercises"
 
 
-# ── Protocol (추상) ───────────────────────────────────────────────────────────
+# ── Protocol ───────────────────────────────────────────────────────────
 
 
 @runtime_checkable
@@ -36,7 +36,7 @@ class ExerciseVectorRepository(Protocol):
         ...
 
 
-# ── 구현체 ────────────────────────────────────────────────────────────────────
+# ── Interface ──────────────────────────────────────────────────────────
 
 
 class QdrantExerciseVectorRepository:

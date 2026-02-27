@@ -1,12 +1,14 @@
 # app/data/user_activity_repository.py
 """
-UserActivityRepository Protocol과 QdrantUserActivityRepository 구현체.
+사용자 활동 프로필 벡터 저장소
 
-upsert(user_id, vector, payload) — 신규 생성 또는 갱신
-exists(user_id)                  — cold start 판단용
+UserActivityVectorRepository (Protocol)
+  - upsert(user_id, vector, payload) → None
+  - exists(user_id) → bool
 
-TODO: ActivityBasedColdStartChecker 활성화 시 app/api/v2/recommend.py 의
-      _cold_start_checker 를 DefaultColdStartChecker → ActivityBasedColdStartChecker 로 교체
+QdrantUserActivityVectorRepository
+  - 컬렉션이 없으면 자동 생성 (벡터 차원은 upsert 시 추론)
+  - Cosine 유사도 기준 #TODO: 향후 거리 기준을 컬렉션 단위로 유연하게 설정할 수 있도록 개선 가능
 """
 
 from __future__ import annotations
@@ -21,11 +23,11 @@ logger = logging.getLogger(__name__)
 COLLECTION_NAME = "user_activity_profiles"
 
 
-# ── Protocol (추상) ──────────────────────────────────────────────────────────
+# ── Protocol ───────────────────────────────────────────────────────────
 
 
 @runtime_checkable
-class UserActivityRepository(Protocol):
+class UserActivityVectorRepository(Protocol):
     def upsert(self, user_id: int, vector: list[float], payload: dict) -> None:
         """사용자 활동 프로필을 벡터DB에 저장 (신규 생성 또는 갱신)"""
         ...
@@ -35,16 +37,20 @@ class UserActivityRepository(Protocol):
         ...
 
 
-# ── 구현체 ────────────────────────────────────────────────────────────────────
+# ── Interface ──────────────────────────────────────────────────────────
 
 
-class QdrantUserActivityRepository:
+class QdrantUserActivityVectorRepository:
     """
-    UserActivityRepository의 Qdrant 구현체.
+    UserActivityVectorRepository의 Qdrant 구현체.
 
     - upsert: user_id를 Point id로 사용 → 동일 user_id 재호출 시 갱신
     - exists: retrieve로 단건 조회, 결과 없으면 False 반환
     - 컬렉션 미존재 시 upsert 최초 호출에서 자동 생성
+    - 거리 기준: Cosine (시맨틱 유사도)
+
+    TODO: ActivityBasedColdStartChecker 활성화 시 app/api/v2/recommend.py 의
+          _cold_start_checker 를 DefaultColdStartChecker → ActivityBasedColdStartChecker 로 교체
     """
 
     def __init__(self, client: QdrantClient) -> None:
@@ -63,8 +69,8 @@ class QdrantUserActivityRepository:
         )
 
     def exists(self, user_id: int) -> bool:
-        # TODO: 컬렉션이 없을 때 qdrant_client.exceptions.UnexpectedResponse 발생 가능
-        #       cold start checker 활성화 전 _ensure_collection 선행 필요 여부 검토
+        # TODO: 컬렉션이 없을 때 UnexpectedResponse 발생 가능
+        #       ActivityBasedColdStartChecker 활성화 전 검토 필요
         results = self._client.retrieve(
             collection_name=COLLECTION_NAME,
             ids=[user_id],

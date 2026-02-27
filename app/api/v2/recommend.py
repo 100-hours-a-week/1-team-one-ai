@@ -43,10 +43,11 @@ router = APIRouter()
 # TODO: Task Executor 교체: BackgroundTaskExecutor → CeleryTaskExecutor
 _task_store: TaskStore = InMemoryTaskStore()
 _callback_client = CallbackClient()
-# TODO: Qdrant 연동 완료 후 ActivityBasedColdStartChecker 로 교체:
-#   from app.services.user_activity.activity_service import UserActivityService
+# TODO: POST /update/users 배치 upsert 충분히 쌓인 후 ActivityBasedColdStartChecker 로 교체:
+#   from app.data.user_activity_repository import QdrantUserActivityVectorRepository
+#   from app.data.qdrant_client import get_qdrant_client
 #   from app.services.recommend.cold_start_checker import ActivityBasedColdStartChecker
-#   _cold_start_checker = ActivityBasedColdStartChecker(UserActivityService(...))
+#   _cold_start_checker = ActivityBasedColdStartChecker(QdrantUserActivityVectorRepository(get_qdrant_client()))
 _cold_start_checker: ColdStartChecker = DefaultColdStartChecker()
 
 

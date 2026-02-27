@@ -16,7 +16,7 @@ import logging
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from app.data.user_activity_repository import UserActivityRepository
+    from app.data.user_activity_repository import UserActivityVectorRepository
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class ActivityBasedColdStartChecker:
           (POST /update/users 배치 upsert가 충분히 쌓인 후 활성화)
     """
 
-    def __init__(self, repository: UserActivityRepository) -> None:
+    def __init__(self, repository: UserActivityVectorRepository) -> None:
         self._repository = repository
 
     def is_cold_start(self, user_id: int) -> bool:

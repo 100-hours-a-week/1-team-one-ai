@@ -1,8 +1,8 @@
-# app/services/user_activity/profile_service.py
+# app/services/user_activity/user_activity_vector_service.py
 """
 사용자 활동 프로필 벡터 upsert 서비스.
 
-UserActivityProfileService
+UserActivityVectorService
   - try_upsert_batch(profiles) → int
     - passage 생성 → 임베딩 → repository.upsert()
     - Qdrant 미연결 / embedding_model 미설정 시 조용히 건너뜀 (silent skip)
@@ -15,7 +15,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from app.data.user_activity_repository import UserActivityRepository
+    from app.data.user_activity_repository import UserActivityVectorRepository
 
 from app.schemas.v2.user_activity import UserProfile
 
@@ -55,10 +55,10 @@ def _build_passage(profile: UserProfile) -> str:
     )
 
 
-# ── UserActivityProfileService ────────────────────────────────────────────────
+# ── UserActivityVectorService ─────────────────────────────────────────────────
 
 
-class UserActivityProfileService:
+class UserActivityVectorService:
     """
     사용자 활동 프로필 → Qdrant 벡터 upsert 오케스트레이터.
 
@@ -68,7 +68,7 @@ class UserActivityProfileService:
 
     def __init__(
         self,
-        repository: UserActivityRepository | None,
+        repository: UserActivityVectorRepository | None,
         embedding_model: Any | None,  # SentenceTransformer 등 encode() 지원 모델
     ) -> None:
         self._repository = repository
@@ -83,7 +83,7 @@ class UserActivityProfileService:
         """
         if self._repository is None or self._embedding_model is None:
             logger.debug(
-                "UserActivityProfileService: repository=%s, embedding_model=%s — 벡터 upsert 건너뜀",
+                "UserActivityVectorService: repository=%s, embedding_model=%s — 벡터 upsert 건너뜀",
                 "설정됨" if self._repository else "미설정",
                 "설정됨" if self._embedding_model else "미설정",
             )

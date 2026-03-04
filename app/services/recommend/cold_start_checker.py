@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Protocol
 
+from app.data.qdrant_exceptions import QdrantAuthError, QdrantConnectionError, QdrantError
+
 if TYPE_CHECKING:
     from app.data.user_activity_repository import UserActivityVectorRepository
 
@@ -52,19 +54,40 @@ class ActivityBasedColdStartChecker:
     - Qdrant에 해당 user_id의 프로필이 존재 → non-cold (False)
     - 존재하지 않음                          → cold start (True)
 
-    TODO: app/api/v2/recommend.py 의 _cold_start_checker 를
-          DefaultColdStartChecker → ActivityBasedColdStartChecker 로 교체
-          (POST /update/users 배치 upsert가 충분히 쌓인 후 활성화)
     """
 
     def __init__(self, repository: UserActivityVectorRepository) -> None:
         self._repository = repository
 
     def is_cold_start(self, user_id: int) -> bool:
-        is_non_cold = self._repository.exists(user_id)
-        logger.debug(
-            "Cold start 판단 [user_id=%d]: %s (활동 프로필 기반)",
-            user_id,
-            not is_non_cold,
-        )
-        return not is_non_cold
+        try:
+            is_non_cold = self._repository.exists(user_id)
+            logger.debug(
+                "Cold start 판단 [user_id=%d]: %s (활동 프로필 기반)",
+                user_id,
+                not is_non_cold,
+            )
+            return not is_non_cold
+        except QdrantAuthError as e:
+            logger.error(
+                "Qdrant 인증 실패로 cold start 판단 불가 — cold start로 처리 [user_id=%d]: %s",
+                user_id,
+                e,
+                exc_info=True,
+            )
+            return True
+        except QdrantConnectionError as e:
+            logger.warning(
+                "Qdrant 연결 실패로 cold start 판단 불가 — cold start로 처리 [user_id=%d]: %s",
+                user_id,
+                e,
+            )
+            return True
+        except QdrantError as e:
+            logger.error(
+                "Qdrant 오류로 cold start 판단 불가 — cold start로 처리 [user_id=%d]: %s",
+                user_id,
+                e,
+                exc_info=True,
+            )
+            return True

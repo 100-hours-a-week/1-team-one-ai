@@ -3,20 +3,10 @@
 운동 벡터 upsert 서비스
 
 ExerciseVectorService
-  - try_upsert_all(exercises) → None
+  - try_upsert_all(exercises) → UpsertResult
     - passage 생성 → 임베딩 → PointStruct 구성 → repository.upsert_all()
-    - Qdrant 미연결 / embedding_model 미설정 시 조용히 건너뜀 (silent skip)
-    - 예외 발생 시 WARNING 로그 후 흐름 유지 (기존 API 영향 없음)
-
-DI 조립 예시 (Qdrant 연동 완료 후):
-    from sentence_transformers import SentenceTransformer
-    from qdrant_client import QdrantClient
-    from app.data.exercise_vector_repository import QdrantExerciseVectorRepository
-
-    client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
-    model  = SentenceTransformer("snunlp/KR-ELECTRA-discriminator")   # 또는 선택한 모델
-    repo   = QdrantExerciseVectorRepository(client)
-    svc    = ExerciseVectorService(repository=repo, embedding_model=model)
+    - Qdrant 미연결 / embedding_model 미설정 시 UpsertResult(upserted=0) 반환 (silent skip)
+    - 예외 발생 시 에러 타입 포함 UpsertResult 반환 (기존 API 영향 없음)
 """
 
 from __future__ import annotations
@@ -25,6 +15,16 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from qdrant_client import models
+
+from app.data.qdrant_exceptions import (
+    QdrantAuthError,
+    QdrantCollectionError,
+    QdrantConnectionError,
+    QdrantError,
+    QdrantServerError,
+    UpsertErrorType,
+    UpsertResult,
+)
 
 if TYPE_CHECKING:
     from app.data.exercise_vector_repository import ExerciseVectorRepository
@@ -54,10 +54,13 @@ def _build_passage(ex: dict) -> str:
 
 class ExerciseVectorService:
     """
-    운동 데이터 → Qdrant 벡터 upsert 오케스트레이터.
+    운동 데이터 → (Qdrant) 벡터 upsert 오케스트레이터.
+    1. repository: (Qdrant)ExerciseVectorRepository
+    2. embedding_model: SentenceTransformer
+    3. try_upsert_all
 
-    - embedding_model 또는 repository 가 None 이면 debug 로그 후 건너뜀
-    - upsert 도중 예외 발생 시 WARNING 로그 후 건너뜀 (기존 API 흐름 영향 없음)
+    - embedding_model 또는 repository 가 None 이면 debug 로그 후 UpsertResult(upserted=0) 반환
+    - upsert 도중 예외 발생 시 에러 타입 포함 UpsertResult 반환 (기존 API 흐름 영향 없음)
     """
 
     def __init__(
@@ -70,12 +73,12 @@ class ExerciseVectorService:
 
     # ── public ────────────────────────────────────────────────────────────────
 
-    def try_upsert_all(self, exercises: list[dict]) -> None:
+    def try_upsert_all(self, exercises: list[dict]) -> UpsertResult:
         """
         운동 목록 전체를 벡터DB에 upsert 합니다.
 
-        - Qdrant 미연결 / 모델 미설정 시: DEBUG 로그 후 조용히 종료
-        - 실행 중 예외 발생 시: WARNING 로그 후 조용히 종료
+        - Qdrant 미연결 / 모델 미설정 시: DEBUG 로그 후 UpsertResult(upserted=0) 반환
+        - 실행 중 예외 발생 시: 에러 타입 포함 UpsertResult 반환
         - 기존 운동 데이터(exercises.json) 로드 흐름과 완전히 독립적으로 동작
         """
         if self._repository is None or self._embedding_model is None:
@@ -84,18 +87,29 @@ class ExerciseVectorService:
                 "설정됨" if self._repository else "미설정",
                 "설정됨" if self._embedding_model else "미설정",
             )
-            return
+            return UpsertResult(upserted=0)
 
         try:
             points = self._build_points(exercises)
             count = self._repository.upsert_all(points)
             logger.info("exercises 벡터 upsert 완료: %d 개", count)
-        except Exception as e:
-            logger.warning(
-                "exercises 벡터 upsert 실패 (Qdrant 미연결 또는 오류): %s",
-                e,
-                exc_info=False,
-            )
+            return UpsertResult(upserted=count)
+
+        except QdrantAuthError as e:
+            logger.error("Qdrant 인증 실패 — API 키 확인 필요: %s", e, exc_info=True)
+            return UpsertResult(upserted=0, error_type=UpsertErrorType.AUTH, error_message=str(e))
+        except QdrantServerError as e:
+            logger.error("Qdrant 서버 5xx 오류 (status=%d): %s", e.status_code, e, exc_info=True)
+            return UpsertResult(upserted=0, error_type=UpsertErrorType.SERVER, error_message=f"status={e.status_code}")
+        except QdrantCollectionError as e:
+            logger.warning("Qdrant 컬렉션 없음 — 컬렉션 생성 전 upsert 시도: %s", e)
+            return UpsertResult(upserted=0, error_type=UpsertErrorType.COLLECTION, error_message=str(e))
+        except QdrantConnectionError as e:
+            logger.warning("Qdrant 연결 실패 — 서버 상태 확인 필요: %s", e)
+            return UpsertResult(upserted=0, error_type=UpsertErrorType.CONNECTION, error_message=str(e))
+        except QdrantError as e:
+            logger.error("Qdrant 알 수 없는 오류: %s", e, exc_info=True)
+            return UpsertResult(upserted=0, error_type=UpsertErrorType.UNKNOWN, error_message=str(e))
 
     # ── private ───────────────────────────────────────────────────────────────
 

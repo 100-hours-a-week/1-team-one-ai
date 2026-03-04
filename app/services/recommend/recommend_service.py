@@ -14,7 +14,7 @@ import logging
 from pydantic import ValidationError
 
 from app.configs.llm_config import llm_config
-from app.core.exceptions import ConfigurationError, RoutineValidationError
+from app.core.exceptions import ConfigurationError
 from app.data.loader import exercise_repository
 from app.domain.routine import RoutineList
 from app.prompts.v1 import recommend as v1_prompt
@@ -53,17 +53,18 @@ class RecommendService:
     def __init__(
         self,
         llm_client: LLMClient,
-        exercises: list[dict] | None = None,
         api_version: str = "v1",
     ) -> None:
         """
         Args:
         - llm_client: LLM 클라이언트 인스턴스
-        - exercises: 운동 데이터 리스트
         - api_version: API 버전 ("v1" 또는 "v2"), 프롬프트 선택에 사용
+
+        Note:
+        - 운동 데이터는 _build_prompt() 호출 시 exercise_repository.raw_data를 동적 조회.
+          싱글턴으로 유지하면서 /update/exercises 이후에도 항상 최신 데이터 반영.
         """
         self._llm = llm_client
-        self._exercises = exercises if exercises is not None else exercise_repository.raw_data
 
         # 버전별 프롬프트 모듈 선택
         prompt_module = self._PROMPT_MODULES.get(api_version)
@@ -91,18 +92,6 @@ class RecommendService:
             self._max_tries,
             self._fallback_enabled,
         )
-
-        # rule-based recommender (lazy init 일단은 보류)
-        if self._fallback_enabled:
-            try:
-                self._rule_based = RuleBasedRecommender(self._exercises)
-
-            except ValidationError as e:
-                raise RoutineValidationError(
-                    f"운동 데이터 검증 실패 (fallback 초기화 불가): {e}"
-                ) from e
-        else:
-            self._rule_based = None
 
     def recommend_routines(self, survey: UserSurvey, *, user_id: int | None = None) -> RoutineList:
         """
@@ -159,9 +148,11 @@ class RecommendService:
         )
 
         # fallback 활성화 시 rule-based recommender 사용하여 결과 반환
-        if self._fallback_enabled and self._rule_based:
+        # exercise_repository.raw_data를 동적 조회하여 항상 최신 운동 데이터 사용
+        if self._fallback_enabled:
             logger.info("Rule-based fallback 실행 [user_id=%s]", user_id)
-            return self._rule_based.recommend_routines(survey)
+            rule_based = RuleBasedRecommender(exercise_repository.raw_data)
+            return rule_based.recommend_routines(survey)
 
         # fallback 비활성화 시 에러 전파
         raise LLMInvalidResponseError(
@@ -172,9 +163,7 @@ class RecommendService:
         """사용자 프롬프트 생성."""
         return self._build_user_prompt(
             user=survey,
-            exercises_text=json.dumps(
-                self._exercises, ensure_ascii=False
-            ),  # exercise_repository.raw_data
+            exercises_text=json.dumps(exercise_repository.raw_data, ensure_ascii=False),
         )
 
     def _parse_response(self, raw: str) -> RoutineList:

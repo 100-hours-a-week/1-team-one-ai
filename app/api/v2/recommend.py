@@ -17,13 +17,17 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from app.configs.llm_config import llm_config
 from app.core.config import settings
 from app.core.exceptions import AppError
-from app.data.loader import exercise_repository
+from app.data.user_activity_repository import QdrantUserActivityVectorRepository
 from app.schemas.v2.request import UserInputV2
 from app.schemas.v2.response import TaskAcceptedResponse, TaskResult
 from app.services.callback_client import CallbackClient
 from app.services.llm_clients.ollama_client import OllamaClient
 from app.services.llm_clients.openai_client import OpenAIClient
-from app.services.recommend.cold_start_checker import ColdStartChecker, DefaultColdStartChecker
+from app.services.recommend.cold_start_checker import (
+    ActivityBasedColdStartChecker,
+    ColdStartChecker,
+    DefaultColdStartChecker,
+)
 from app.services.recommend.recommend_service import RecommendService
 from app.services.response.v2 import V2ResponseBuilder
 from app.services.task.executor import BackgroundTaskExecutor, TaskExecutor
@@ -43,16 +47,40 @@ router = APIRouter()
 # TODO: Task Executor 교체: BackgroundTaskExecutor → CeleryTaskExecutor
 _task_store: TaskStore = InMemoryTaskStore()
 _callback_client = CallbackClient()
-# TODO: POST /update/users 배치 upsert 충분히 쌓인 후 ActivityBasedColdStartChecker 로 교체:
-#   from app.data.user_activity_repository import QdrantUserActivityVectorRepository
-#   from app.data.qdrant_client import get_qdrant_client
-#   from app.services.recommend.cold_start_checker import ActivityBasedColdStartChecker
-#   _cold_start_checker = ActivityBasedColdStartChecker(QdrantUserActivityVectorRepository(get_qdrant_client()))
-_cold_start_checker: ColdStartChecker = DefaultColdStartChecker()
+
+
+def _create_cold_start_checker() -> ColdStartChecker:
+    """ColdStartChecker 싱글턴 생성.
+
+    Qdrant 연결 가능 시 ActivityBasedColdStartChecker를 사용하고,
+    실패 시 DefaultColdStartChecker(항상 cold start=True)로 대체한다.
+    추천 요청 자체는 Qdrant 없이도 정상 동작한다.
+    """
+    try:
+        from app.data.qdrant_client import get_qdrant_client
+
+        client = get_qdrant_client()
+        repo = QdrantUserActivityVectorRepository(client)
+        logger.info("ActivityBasedColdStartChecker 초기화 완료 [url=%s]", settings.QDRANT_URL)
+        return ActivityBasedColdStartChecker(repo)
+
+    except Exception as e:
+        logger.warning(
+            "ActivityBasedColdStartChecker 초기화 실패 — DefaultColdStartChecker로 대체: %s",
+            e,
+        )
+        return DefaultColdStartChecker()
+
+
+_cold_start_checker: ColdStartChecker = _create_cold_start_checker()
 
 
 def _create_recommend_service() -> RecommendService:
-    """RecommendService 싱글톤 인스턴스 생성 (모듈 로드 시 1회)"""
+    """RecommendService 싱글턴 인스턴스 생성 (모듈 로드 시 1회).
+
+    운동 데이터는 _build_prompt() 호출 시 exercise_repository.raw_data를 동적 조회하므로
+    /update/exercises 이후에도 항상 최신 데이터가 반영됨.
+    """
     provider_name = llm_config.default_provider
     provider_config = llm_config.providers.get(provider_name)
 
@@ -71,13 +99,15 @@ def _create_recommend_service() -> RecommendService:
             default_timeout=provider_config.timeout_sec,  # type: ignore
         )
 
-    exercises = exercise_repository.raw_data
-    return RecommendService(llm_client=llm_client, exercises=exercises, api_version="v2")
+    return RecommendService(llm_client=llm_client, api_version="v2")
 
 
 def _create_response_builder() -> V2ResponseBuilder:
-    """V2ResponseBuilder 싱글톤 인스턴스 생성 (모듈 로드 시 1회)"""
-    return V2ResponseBuilder(valid_exercise_ids=exercise_repository.exercise_ids)
+    """V2ResponseBuilder 싱글턴 인스턴스 생성 (모듈 로드 시 1회).
+
+    exercise data는 build_core() 호출 시 exercise_repository.get_all()로 동적 갱신됨.
+    """
+    return V2ResponseBuilder()
 
 
 _recommend_service = _create_recommend_service()

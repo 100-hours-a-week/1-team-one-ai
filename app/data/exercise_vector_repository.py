@@ -17,6 +17,8 @@ from typing import Protocol, runtime_checkable
 
 from qdrant_client import QdrantClient, models
 
+from app.data.qdrant_exceptions import translate_qdrant_error
+
 logger = logging.getLogger(__name__)
 
 COLLECTION_NAME = "exercises"
@@ -28,10 +30,11 @@ COLLECTION_NAME = "exercises"
 @runtime_checkable
 class ExerciseVectorRepository(Protocol):
     def upsert_all(self, points: list[models.PointStruct]) -> int:
-        """운동 벡터 포인트를 벡터DB에 batch upsert 합니다.
+        """
+        운동 벡터 포인트를 벡터DB에 batch upsert 합니다.
 
         Returns:
-            upsert된 포인트 수
+        - upsert된 포인트 수
         """
         ...
 
@@ -39,7 +42,7 @@ class ExerciseVectorRepository(Protocol):
 # ── Interface ──────────────────────────────────────────────────────────
 
 
-class QdrantExerciseVectorRepository:
+class QdrantExerciseVectorRepository(ExerciseVectorRepository):
     """
     ExerciseVectorRepository의 Qdrant 구현체.
 
@@ -52,33 +55,55 @@ class QdrantExerciseVectorRepository:
         self._client = client
 
     def upsert_all(self, points: list[models.PointStruct]) -> int:
+        """
+        운동 벡터 포인트를 벡터DB에 batch upsert 합니다.
+
+        Returns:
+        - upsert된 포인트 수
+        """
+
         if not points:
             return 0
 
-        vector_size = len(points[0].vector)  # type: ignore[arg-type]
-        self._ensure_collection(vector_size)
+        try:
+            vector_size = len(points[0].vector)  # type: ignore[arg-type]
+            self._ensure_collection(vector_size)
 
-        self._client.upsert(
-            collection_name=COLLECTION_NAME,
-            points=points,
-        )
-        return len(points)
+            self._client.upsert(
+                collection_name=COLLECTION_NAME,
+                points=points,
+            )
+
+            from app.data.qdrant_client import record_collection_update
+
+            record_collection_update(COLLECTION_NAME)
+
+            return len(points)
+        except Exception as e:
+            raise translate_qdrant_error(e) from e
 
     def _ensure_collection(self, vector_size: int) -> None:
-        """컬렉션이 없으면 생성합니다."""
-        existing = {c.name for c in self._client.get_collections().collections}
-        if COLLECTION_NAME in existing:
-            return
+        """
+        컬렉션이 없으면 생성
+        upsert 시 호출되며, vector_size는 최초 upsert 시점에 추론하여 전달
+        """
+        try:
+            existing = {c.name for c in self._client.get_collections().collections}
+            if COLLECTION_NAME in existing:
+                return
 
-        self._client.create_collection(
-            collection_name=COLLECTION_NAME,
-            vectors_config=models.VectorParams(
-                size=vector_size,
-                distance=models.Distance.COSINE,
-            ),
-        )
-        logger.info(
-            "Qdrant 컬렉션 생성: %s (dim=%d, distance=Cosine)",
-            COLLECTION_NAME,
-            vector_size,
-        )
+            self._client.create_collection(
+                collection_name=COLLECTION_NAME,
+                vectors_config=models.VectorParams(
+                    size=vector_size,
+                    distance=models.Distance.COSINE,  # TODO
+                ),
+            )
+            logger.info(
+                "Qdrant 컬렉션 생성: %s (dim=%d, distance=Cosine)",  # TODO
+                COLLECTION_NAME,
+                vector_size,
+            )
+
+        except Exception as e:
+            raise translate_qdrant_error(e) from e

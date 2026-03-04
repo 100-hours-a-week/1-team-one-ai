@@ -23,7 +23,6 @@ from app.core.exceptions import (
     # DependencyNotReadyError,
     AppError,
 )
-from app.data.loader import exercise_repository
 from app.schemas.v1.request import UserInputV1
 from app.schemas.v1.response import RecommendationResponseV1
 from app.services.llm_clients.ollama_client import OllamaClient
@@ -39,6 +38,9 @@ router = APIRouter()
 def get_recommend_service() -> RecommendService:
     """
     추천 서비스 인스턴스 생성 : RecommendService 의존성 주입 함수
+
+    운동 데이터는 _build_prompt() 호출 시 exercise_repository.raw_data를 동적 조회하므로
+    /update/exercises 이후에도 항상 최신 데이터가 반영됨.
     """
 
     provider_name = llm_config.default_provider
@@ -61,16 +63,16 @@ def get_recommend_service() -> RecommendService:
     # elif provider_name == "gemini":
     #     llm_client = GeminiClient(api_key=$GEMINI_API_KEY, model=provider_config.model)
 
-    exercises = exercise_repository.raw_data
-
-    return RecommendService(llm_client=llm_client, exercises=exercises)
+    return RecommendService(llm_client=llm_client)
 
 
 def get_response_builder() -> V1ResponseBuilder:
     """
     응답 빌더 인스턴스 생성 : V1ResponseBuilder 의존성 주입 함수
+
+    exercise data는 build_core() 호출 시 exercise_repository.get_all()로 동적 갱신됨.
     """
-    return V1ResponseBuilder(valid_exercise_ids=exercise_repository.exercise_ids)
+    return V1ResponseBuilder()
 
 
 @router.post("/routines", response_model=RecommendationResponseV1)

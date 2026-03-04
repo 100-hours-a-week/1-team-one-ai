@@ -56,9 +56,19 @@ async def update_exercises(
         logger.error("운동 데이터 load 실패: %s", e)
         raise ExerciseDataError(f"운동 데이터 load 실패: {e}") from e
 
-    exercise_svc.try_upsert_all(exercise_repository.raw_data)
-
-    return {"status": "ok", "count": len(exercise_repository.exercise_ids)}
+    upserted = exercise_svc.try_upsert_all(exercise_repository.raw_data)
+    status = "error" if upserted.error_type else "ok"
+    return {
+        "status": status,
+        "exercises": len(exercise_repository.exercise_ids),
+        "upserted": upserted.upserted,
+        "error": None
+        if upserted.error_type is None
+        else {
+            "type": upserted.error_type,
+            "message": upserted.error_message,
+        },
+    }
 
 
 @router.post("/update/users")
@@ -82,4 +92,14 @@ async def update_users(
         200: {"status": "ok", "upserted": N}
     """
     upserted = user_activity_svc.try_upsert_batch(body.profiles)
-    return {"status": "ok", "upserted": upserted}
+    status = "error" if upserted.error_type else "ok"
+    return {
+        "status": status,
+        "upserted": upserted.upserted,
+        "error": None
+        if upserted.error_type is None
+        else {
+            "type": upserted.error_type,
+            "message": upserted.error_message,
+        },
+    }

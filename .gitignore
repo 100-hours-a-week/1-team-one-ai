@@ -15,4 +15,6 @@ examples/
 scripts/
 tests/pilot/
 CLAUDE.md
-app/data/exercises.json
+
+app/data/eye_only.json
+app/data/eye_routine.json

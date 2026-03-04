@@ -5,9 +5,7 @@
 
 Raise: None
 
-HTTP Status:
-- 200: OK
-- 503: Service Unavailable
+HTTP Status: 200 OK
 """
 
 from datetime import datetime, timezone

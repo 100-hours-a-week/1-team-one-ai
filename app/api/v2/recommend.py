@@ -1,166 +1,31 @@
 # app/api/v2/recommend.py
 """
-V2 추천 API (비동기 콜백 + 폴링)
-- POST /routines  : 추천 요청 접수 (202 즉시 반환)
-- GET  /routines/{task_id} : 추천 상태 조회 (폴링)
+추천 API (v2) — router + endpoints only
 
-교체 가능한 의존성 (get_* DI 함수만 수정하면 엔드포인트 코드 변경 불필요):
-- TaskStore         : get_task_store()         → InMemoryTaskStore / RedisTaskStore
-- TaskExecutor      : get_task_executor()      → BackgroundTaskExecutor / CeleryTaskExecutor
-- ColdStartChecker  : get_cold_start_checker() → DefaultColdStartChecker / ActivityBasedColdStartChecker
+DI 배선은 app/api/deps.py 참조.
+구현체 교체 지점 (deps.py의 함수만 수정):
+  - TaskStore        : get_task_store()         → InMemoryTaskStore / RedisTaskStore
+  - TaskExecutor     : get_task_executor()      → BackgroundTaskExecutor / CeleryTaskExecutor
+  - ColdStartChecker : get_cold_start_checker() → DefaultColdStartChecker / ActivityBasedColdStartChecker
+
+- POST /routines          : 추천 요청 접수 (202 즉시 반환)
+- GET  /routines/{task_id}: 추천 상태 조회 (폴링)
 """
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.configs.llm_config import llm_config
-from app.core.config import settings
+from app.api.deps import get_task_executor, get_task_service
 from app.core.exceptions import AppError
-from app.data.user_activity_repository import QdrantUserActivityVectorRepository
 from app.schemas.v2.request import UserInputV2
 from app.schemas.v2.response import TaskAcceptedResponse, TaskResult
-from app.services.callback_client import CallbackClient
-from app.services.llm_clients.ollama_client import OllamaClient
-from app.services.llm_clients.openai_client import OpenAIClient
-from app.services.recommend.cold_start_checker import (
-    ActivityBasedColdStartChecker,
-    ColdStartChecker,
-    DefaultColdStartChecker,
-)
-from app.services.recommend.recommend_service import RecommendService
-from app.services.response.v2 import V2ResponseBuilder
-from app.services.task.executor import BackgroundTaskExecutor, TaskExecutor
+from app.services.task.executor import TaskExecutor
 from app.services.task.service import TaskService
-from app.services.task.store import InMemoryTaskStore, TaskStore
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-# ============================================================
-# 싱글톤 인스턴스
-# ============================================================
-
-# TODO: Task Store 교체: InMemoryTaskStore → RedisTaskStore(redis_client)
-# TODO: Task Executor 교체: BackgroundTaskExecutor → CeleryTaskExecutor
-_task_store: TaskStore = InMemoryTaskStore()
-_callback_client = CallbackClient()
-
-
-def _create_cold_start_checker() -> ColdStartChecker:
-    """ColdStartChecker 싱글턴 생성.
-
-    Qdrant 연결 가능 시 ActivityBasedColdStartChecker를 사용하고,
-    실패 시 DefaultColdStartChecker(항상 cold start=True)로 대체한다.
-    추천 요청 자체는 Qdrant 없이도 정상 동작한다.
-    """
-    try:
-        from app.data.qdrant_client import get_qdrant_client
-
-        client = get_qdrant_client()
-        repo = QdrantUserActivityVectorRepository(client)
-        logger.info("ActivityBasedColdStartChecker 초기화 완료 [url=%s]", settings.QDRANT_URL)
-        return ActivityBasedColdStartChecker(repo)
-
-    except Exception as e:
-        logger.warning(
-            "ActivityBasedColdStartChecker 초기화 실패 — DefaultColdStartChecker로 대체: %s",
-            e,
-        )
-        return DefaultColdStartChecker()
-
-
-_cold_start_checker: ColdStartChecker = _create_cold_start_checker()
-
-
-def _create_recommend_service() -> RecommendService:
-    """RecommendService 싱글턴 인스턴스 생성 (모듈 로드 시 1회).
-
-    운동 데이터는 _build_prompt() 호출 시 exercise_repository.raw_data를 동적 조회하므로
-    /update/exercises 이후에도 항상 최신 데이터가 반영됨.
-    """
-    provider_name = llm_config.default_provider
-    provider_config = llm_config.providers.get(provider_name)
-
-    if provider_name == "openai":
-        api_key = settings.OPENAI_API_KEY
-        llm_client = OpenAIClient(
-            api_key=api_key,  # type: ignore
-            model=provider_config.model,  # type: ignore
-            default_timeout=provider_config.timeout_sec,  # type: ignore
-        )
-    elif provider_name == "ollama_cloud":
-        api_key = settings.OLLAMA_API_KEY
-        llm_client = OllamaClient(
-            api_key=api_key,  # type: ignore
-            model=provider_config.model,  # type: ignore
-            default_timeout=provider_config.timeout_sec,  # type: ignore
-        )
-
-    return RecommendService(llm_client=llm_client, api_version="v2")
-
-
-def _create_response_builder() -> V2ResponseBuilder:
-    """V2ResponseBuilder 싱글턴 인스턴스 생성 (모듈 로드 시 1회).
-
-    exercise data는 build_core() 호출 시 exercise_repository.get_all()로 동적 갱신됨.
-    """
-    return V2ResponseBuilder()
-
-
-_recommend_service = _create_recommend_service()
-_response_builder = _create_response_builder()
-
-
-# ============================================================
-# 의존성 주입 함수 — 구현체 교체 지점
-# ============================================================
-
-
-def get_task_store() -> TaskStore:
-    """
-    TaskStore 의존성 주입
-    """
-    return _task_store
-
-
-def get_cold_start_checker() -> ColdStartChecker:
-    """
-    ColdStartChecker 의존성 주입
-    TODO: 사용자 프로필 기반 구현체로 교체 시 이 함수만 변경
-    """
-    return _cold_start_checker
-
-
-def get_task_service(
-    store: TaskStore = Depends(get_task_store),
-) -> TaskService:
-    """TaskService 의존성 주입"""
-    return TaskService(
-        store=store,
-        recommend_service=_recommend_service,
-        response_builder=_response_builder,
-        callback_client=_callback_client,
-        cold_start_checker=_cold_start_checker,
-    )
-
-
-def get_task_executor(
-    background_tasks: BackgroundTasks,  # TODO: Task Executor 교체 시 제거
-    task_service: TaskService = Depends(get_task_service),
-) -> TaskExecutor:
-    """
-    TaskExecutor 의존성 주입
-    TODO: Task Executor 교체 시 이 함수의 본문만 변경
-    """
-    return BackgroundTaskExecutor(background_tasks, task_service)
-
-
-# ============================================================
-# API Endpoints
-# ============================================================
 
 
 @router.post(
@@ -174,17 +39,17 @@ def create_recommendation(
     executor: TaskExecutor = Depends(get_task_executor),
 ) -> TaskAcceptedResponse:
     """
-    운동 루틴 추천 요청 접수 (V2:비동기)
+    운동 루틴 추천 요청 접수 (V2: 비동기)
 
     1. Task 생성 및 저장
     2. 백그라운드에서 추천 처리 시작
     3. taskId와 초기 상태 즉시 반환 (HTTP 202)
 
-    의존성 Depnedency
-    1. TaskService: Task 생명주기 관리 객체 (store, recommend_service, response_builder, callback_client)
-    2. TaskExecutor: 백그라운드 태스크 실행 워커 (BackgroundTasks / Celery)
+    Args:
+    - user_input: 사용자 설문 + taskId + userId
+    - task_service: Task 생명주기 관리 (DI) → deps.get_task_service
+    - executor: 백그라운드 실행 워커 (DI) → deps.get_task_executor
     """
-
     logger.info(
         "V2 추천 요청 수신: taskId=%s, userId=%d, routineCount=%d",
         user_input.taskId,
@@ -212,9 +77,15 @@ def get_recommendation_status(
     """
     추천 태스크 상태 조회 (폴링)
 
+    Args:
+    - task_id: 조회할 Task ID
+    - task_service: Task 생명주기 관리 (DI) → deps.get_task_service
+
+    Returns:
     - IN_PROGRESS: 처리 중 (progress, currentStep 포함)
-    - COMPLETED: 완료 (routines, summary 포함)
-    - FAILED: 실패 (errorMessage 포함)
+    - COMPLETED  : 완료 (routines, summary 포함)
+    - FAILED     : 실패 (errorMessage 포함)
+    - 404        : 존재하지 않는 task_id
     """
     result = task_service.get_task_status(task_id)
     if result is None:

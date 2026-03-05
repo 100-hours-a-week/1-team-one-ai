@@ -14,7 +14,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from app.core.exceptions import ConfigurationError
-from app.domain.exercise import ExerciseType
+from app.domain.exercise import BodyPart, ExerciseType
 from app.domain.routine import Routine, RoutineList
 from app.domain.routinestep_factory import create_routinestep_from_exercise
 from app.schemas.common import UserSurvey
@@ -57,8 +57,32 @@ _KEYWORD_TO_CONCERN: list[tuple[str, str]] = [
     ("피로", "전반적인 신체 피로"),
 ]
 
-# TODO: 룰베이스 방식과 동일한 이유 문구 사용으로 통일 검토 - 키워드 매핑
-_REASON_FALLBACK = "설문조사를 기반으로 한 사용자 맞춤 추천입니다."
+_BODY_PART_TO_KOREAN: dict[BodyPart, str] = {
+    BodyPart.NECK: "목",
+    BodyPart.SHOULDER: "어깨",
+    BodyPart.WRIST: "손목",
+    BodyPart.LOWER_BACK: "허리",
+}
+
+
+def _build_fallback_reason(
+    steps: list[RoutineStep],
+    exercises_by_id: dict[int, BaseExercise],
+) -> str:
+    """steps의 운동 부위 기반으로 reason 생성 (룰베이스와 동일한 패턴)."""
+    from collections import Counter
+
+    exercises = [exercises_by_id[s.exerciseId] for s in steps if s.exerciseId in exercises_by_id]
+    if not exercises:
+        return "전신 스트레칭을 위한 루틴입니다."
+    if all(ex.type == ExerciseType.EYES for ex in exercises):
+        return "눈 피로 해소를 위한 눈 운동 루틴입니다."
+    body_parts = [ex.bodyPart for ex in exercises if ex.type != ExerciseType.EYES]
+    if not body_parts:
+        return "전신 스트레칭을 위한 루틴입니다."
+    top_part = Counter(body_parts).most_common(1)[0][0]
+    part_name = _BODY_PART_TO_KOREAN.get(top_part, top_part.value)
+    return f"{part_name} 부위 집중 케어를 위한 루틴입니다."
 
 
 # ── VectorRecommendService ────────────────────────────────────────────────────
@@ -392,7 +416,7 @@ class VectorRecommendService:
         LLM 미설정 또는 호출 실패 시 기본 문구를 반환합니다.
         """
         if self._llm is None:
-            return _REASON_FALLBACK
+            return _build_fallback_reason(steps, exercises_by_id)
 
         try:
             from app.prompts.v2.reason import REASON_SYSTEM_PROMPT, build_reason_prompt
@@ -410,4 +434,4 @@ class VectorRecommendService:
 
         except Exception as e:
             logger.warning("루틴 reason LLM 생성 실패 — 기본값 사용: %s", e)
-            return _REASON_FALLBACK
+            return _build_fallback_reason(steps, exercises_by_id)

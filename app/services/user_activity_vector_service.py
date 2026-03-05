@@ -30,8 +30,7 @@ from app.schemas.v2.user_activity import UserProfile
 
 logger = logging.getLogger(__name__)
 
-MIN_RATIO = 0.1  # passage 생성 시 포함할 최소 비율 임계값
-# TODO: Constants 중앙 집중 관리 - app/core/constants.py 등 별도 모듈로 이동 검토
+MIN_RATIO = 0.1  # 이 비율 미만으로 수행한 부위·유형은 임베딩 텍스트에서 제외 (예: 0.1 = 10% 미만이면 제외)
 
 
 # ── passage 생성 ──────────────────────────────────────────────────────────────
@@ -128,13 +127,23 @@ class UserActivityVectorService:
             return UpsertResult(upserted=0, error_type=UpsertErrorType.AUTH, error_message=str(e))
         except QdrantServerError as e:
             logger.error("Qdrant 서버 5xx 오류 (status=%d): %s", e.status_code, e, exc_info=True)
-            return UpsertResult(upserted=0, error_type=UpsertErrorType.SERVER, error_message=f"status={e.status_code}")
+            return UpsertResult(
+                upserted=0,
+                error_type=UpsertErrorType.SERVER,
+                error_message=f"status={e.status_code}",
+            )
         except QdrantCollectionError as e:
             logger.warning("Qdrant 컬렉션 없음 — 컬렉션 생성 전 upsert 시도: %s", e)
-            return UpsertResult(upserted=0, error_type=UpsertErrorType.COLLECTION, error_message=str(e))
+            return UpsertResult(
+                upserted=0, error_type=UpsertErrorType.COLLECTION, error_message=str(e)
+            )
         except QdrantConnectionError as e:
             logger.warning("Qdrant 연결 실패 — 서버 상태 확인 필요: %s", e)
-            return UpsertResult(upserted=0, error_type=UpsertErrorType.CONNECTION, error_message=str(e))
+            return UpsertResult(
+                upserted=0, error_type=UpsertErrorType.CONNECTION, error_message=str(e)
+            )
         except QdrantError as e:
             logger.error("Qdrant 알 수 없는 오류: %s", e, exc_info=True)
-            return UpsertResult(upserted=0, error_type=UpsertErrorType.UNKNOWN, error_message=str(e))
+            return UpsertResult(
+                upserted=0, error_type=UpsertErrorType.UNKNOWN, error_message=str(e)
+            )

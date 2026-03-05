@@ -9,8 +9,7 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# 기본 경로 상수
-# TODO: Constants 한곳에서 중앙 집중 관리
+# 기본 경로 상수 — __file__ 기준 상대 계산이므로 이 파일 안에서만 유효 (이동 불가)
 _BASE_DIR = Path(__file__).parent.parent  # app/
 _PROJECT_ROOT = _BASE_DIR.parent  # project root
 _DATA_DIR = _BASE_DIR / "data"
@@ -78,8 +77,8 @@ class CallbackPolicy:
     - MAX_RETRIES: 최대 재시도 횟수 (초기 시도 제외)
     """
 
-    TIMEOUT_SEC: int = 10
-    MAX_RETRIES: int = 1
+    TIMEOUT_SEC: int = 10  # UP: 느린 coreBE 허용·worker 점유↑, DOWN: 타임아웃 에러↑
+    MAX_RETRIES: int = 1  # 총 대기 = TIMEOUT_SEC × (MAX_RETRIES + 1) / 0이면 재시도 없음 (첫 1회 후 바로 실패 처리)
 
 
 class RoutineTimePolicy:
@@ -89,10 +88,14 @@ class RoutineTimePolicy:
     - MIN_TIME: 최소 시간 (150초 = 2분 30초)
     - MAX_TIME: 최대 시간 (210초 = 3분 30초)
     - TARGET_TIME: 목표 시간 (180초 = 3분)
+
+    주의: MIN_TIME ≤ TARGET_TIME ≤ MAX_TIME 을 반드시 만족해야 함
     """
 
-    MIN_TIME: int = 150  # 2분 30초
-    MAX_TIME: int = 210  # 3분 30초
-    TARGET_TIME: int = 180  # 3분
-    DEFAULT_DURATION_TIME: int = 10  # 10초
-    DEFAULT_TARGET_REPS: int = 10  # 10회
+    MIN_TIME: int = 150  # 2분 30초 (UP: 운동 추가 보완 잦아짐, DOWN: 짧은 루틴 허용)
+    MAX_TIME: int = 210  # 3분 30초 (UP: 긴 루틴 허용, DOWN: 운동 제거 빈도 잦아짐)
+    TARGET_TIME: int = 180  # 3분 — 시간 조정 목표점 (MIN <= TARGET <= MAX)
+    DEFAULT_DURATION_TIME: int = (
+        10  # totalDuration 미기재 운동 기본 수행 시간(초) — 루틴 총 시간 직접 영향
+    )
+    DEFAULT_TARGET_REPS: int = 10  # targetReps 미기재 REPS 운동 기본 반복 횟수 — 시간 추정에 영향

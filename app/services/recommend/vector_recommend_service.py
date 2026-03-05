@@ -29,20 +29,24 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # ── 상수 ──────────────────────────────────────────────────────────────────────
-# TODO: Constants 한곳에서 중앙 집중 관리
 
-SEVERITY_THRESHOLD = 2  # 이 값 이상인 문항만 쿼리에 포함
-DEFAULT_EXERCISES_PER_ROUTINE = 4
-DEFAULT_SEARCH_LIMIT = 30
-DEFAULT_SCORE_THRESHOLD = 0.4  # multilingual-e5 기준 충분한 하한값
+SEVERITY_THRESHOLD = (
+    2  # 설문 응답 점수 하한 (range: 1~5 / UP:강한 증상만 반영, DOWN:경미한 증상도 포함)
+)
+DEFAULT_EXERCISES_PER_ROUTINE = 4  # 루틴당 최대 운동 수 (UP:루틴 길어짐, DOWN:짧아짐)
+DEFAULT_SEARCH_LIMIT = (
+    30  # Qdrant 검색 후보 수 (UP: 다양성 & 지연 증가, DOWN: 다양성 감소 · 속도 증가)
+)
+DEFAULT_SCORE_THRESHOLD = (
+    0.4  # 벡터 유사도 하한 (UP: 정밀도 증가 · recall 감소, DOWN: recall 증가 · 노이즈 증가)
+)
 
-# Non-cold start 벡터 블렌딩 가중치
-# 사용자 활동 이력을 설문보다 높게 반영 (행동 기반 프로필 우선)
-SURVEY_VECTOR_WEIGHT = 0.4
-ACTIVITY_VECTOR_WEIGHT = 0.6
+# Non-cold start 벡터 블렌딩 가중치 — 합이 반드시 1.0 (cosine 스케일 왜곡 방지)
+SURVEY_VECTOR_WEIGHT = 0.4  # 설문조사 가중치
+ACTIVITY_VECTOR_WEIGHT = 0.6  # 사용자 활동 가중치  (= 1 - SURVEY_VECTOR_WEIGHT)
 
 # questionContent 키워드 → 쿼리용 건강 상태 문구 매핑
-# 순서대로 questionContent에서 첫 매칭을 사용
+# questionContent에서 첫 매칭을 사용
 _KEYWORD_TO_CONCERN: list[tuple[str, str]] = [
     ("목 부위", "목 부위의 불편함과 통증"),
     ("어깨", "어깨 부위의 뻐근함과 통증"),
@@ -53,7 +57,8 @@ _KEYWORD_TO_CONCERN: list[tuple[str, str]] = [
     ("피로", "전반적인 신체 피로"),
 ]
 
-_REASON_FALLBACK = "설문 기반 벡터 검색 맞춤 추천"
+# TODO: 룰베이스 방식과 동일한 이유 문구 사용으로 통일 검토 - 키워드 매핑
+_REASON_FALLBACK = "설문조사를 기반으로 한 사용자 맞춤 추천입니다."
 
 
 # ── VectorRecommendService ────────────────────────────────────────────────────
@@ -232,9 +237,9 @@ class VectorRecommendService:
         if eyes_score < SEVERITY_THRESHOLD:
             return False
 
-        top_n = sorted(
-            survey.survey, key=lambda a: a.selectedOptionSortOrder, reverse=True
-        )[:routine_count]
+        top_n = sorted(survey.survey, key=lambda a: a.selectedOptionSortOrder, reverse=True)[
+            :routine_count
+        ]
         return any("눈" in a.questionContent for a in top_n)
 
     def _group_bilateral_pairs(
@@ -333,7 +338,9 @@ class VectorRecommendService:
             groups_per_routine = max(1, len(body_hit_groups) // body_count)
 
             for i in range(body_count):
-                chunk_groups = body_hit_groups[i * groups_per_routine : (i + 1) * groups_per_routine]
+                chunk_groups = body_hit_groups[
+                    i * groups_per_routine : (i + 1) * groups_per_routine
+                ]
                 chunk = [h for group in chunk_groups for h in group]
                 if not chunk:
                     break
@@ -369,10 +376,7 @@ class VectorRecommendService:
         logger.debug(
             "벡터 검색 추천 결과: %d개 루틴, 운동 분포=%s",
             len(routines),
-            [
-                [step.exerciseId for step in r.steps]
-                for r in routines
-            ],
+            [[step.exerciseId for step in r.steps] for r in routines],
         )
         return RoutineList(routines=routines)
 

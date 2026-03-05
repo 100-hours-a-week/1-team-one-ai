@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 
 
 COLLECTION_NAME = "user_activity_profiles"
-# TODO: Constants 중앙 집중 관리 - app/core/constants.py 등 별도 모듈로 이동 검토
 
 
 # ── Protocol ───────────────────────────────────────────────────────────

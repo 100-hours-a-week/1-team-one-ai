@@ -19,11 +19,16 @@ from datetime import datetime
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app.data.exercise_vector_repository import COLLECTION_NAME as EXERCISE_COLLECTION_NAME
+from app.data.user_activity_repository import COLLECTION_NAME as USER_ACTIVITY_COLLECTION_NAME
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-MONITORED_COLLECTIONS = ["exercises", "user_activity_profiles"]
+# 컬렉션명을 여기서 직접 쓰지 않고 각 Repository에서 import한다.
+# → 컬렉션명을 Repository에서 바꾸면 이 목록도 자동으로 바뀐다.
+MONITORED_COLLECTIONS = [EXERCISE_COLLECTION_NAME, USER_ACTIVITY_COLLECTION_NAME]
 
 
 # ── Response Schema ───────────────────────────────────────────────────────────

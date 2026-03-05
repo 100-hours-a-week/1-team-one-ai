@@ -40,6 +40,7 @@ from app.services.recommend.cold_start_checker import (
     DefaultColdStartChecker,
 )
 from app.services.recommend.recommend_service import RecommendService
+from app.services.recommend.vector_recommend_service import VectorRecommendService
 from app.services.response.v1 import V1ResponseBuilder
 from app.services.response.v2 import V2ResponseBuilder
 from app.services.task.executor import BackgroundTaskExecutor, TaskExecutor
@@ -244,43 +245,58 @@ def get_task_executor(
 
 # ==============================================================================
 # [3] Vector / Embed
+#   _embedding_model         : SentenceTransformer 싱글턴 (모든 벡터 서비스 공유)
 #   _exercise_vector_svc     : ExerciseVectorService (Qdrant 미연결 시 비활성화)
 #   _user_activity_vec_svc   : UserActivityVectorService (Qdrant 미연결 시 비활성화)
+#   _vector_recommend_svc    : VectorRecommendService (Qdrant 미연결 시 비활성화)
 #   get_exercise_vector_service()      : ExerciseVectorService DI
 #   get_user_activity_vector_service() : UserActivityVectorService DI
 #
-#   두 서비스 모두 Qdrant/SentenceTransformer 없이도 비활성화 모드로 정상 기동.
+#   모든 서비스가 _embedding_model 싱글턴을 공유하므로 SentenceTransformer 1회 로드.
+#   Qdrant/SentenceTransformer 없이도 비활성화 모드로 정상 기동.
 #   try_upsert_*() 호출 시 조용히 건너뜀 — 추천 API 흐름에 영향 없음.
 # ==============================================================================
 
 
-def _create_exercise_vector_service() -> ExerciseVectorService:
-    """ExerciseVectorService 싱글턴 생성.
+def _create_embedding_model():
+    """[Group A] SentenceTransformer 싱글턴 — 모든 벡터 서비스가 공유.
 
-    성공: QdrantExerciseVectorRepository + SentenceTransformer 조합
-    실패: repository=None, embedding_model=None (비활성화 모드)
+    100MB+ 대형 모델이므로 프로세스 내 1회만 로드합니다.
+    실패 시 None 반환 → 각 서비스가 비활성화 모드로 동작.
 
     환경변수:
-      QDRANT_URL             : 연결 대상 (기본 http://localhost:6333)
-      QDRANT_API_KEY         : 클라우드 인스턴스용 (로컬 생략)
       QDRANT_EMBEDDING_MODEL : 임베딩 모델명 (기본 intfloat/multilingual-e5-small)
     TODO: 임베딩 모델 다양화 — SentenceTransformer 외 클라우드 API 지원
     """
     try:
         from sentence_transformers import SentenceTransformer
 
+        model = SentenceTransformer(settings.QDRANT_EMBEDDING_MODEL)
+        logger.info("SentenceTransformer 로드 완료 [model=%s]", settings.QDRANT_EMBEDDING_MODEL)
+        return model
+    except Exception as e:
+        logger.warning("SentenceTransformer 로드 실패 — 벡터 기능 비활성화: %s", e)
+        return None
+
+
+def _create_exercise_vector_service() -> ExerciseVectorService:
+    """ExerciseVectorService 싱글턴 생성.
+
+    성공: QdrantExerciseVectorRepository + _embedding_model 공유
+    실패: repository=None, embedding_model=None (비활성화 모드)
+
+    환경변수:
+      QDRANT_URL    : 연결 대상 (기본 http://localhost:6333)
+      QDRANT_API_KEY: 클라우드 인스턴스용 (로컬 생략)
+    """
+    try:
         from app.data.exercise_vector_repository import QdrantExerciseVectorRepository
         from app.data.qdrant_client import get_qdrant_client
 
         client = get_qdrant_client()
-        model = SentenceTransformer(settings.QDRANT_EMBEDDING_MODEL)
         repo = QdrantExerciseVectorRepository(client)
-        logger.info(
-            "ExerciseVectorService 초기화 완료 [url=%s, model=%s]",
-            settings.QDRANT_URL,
-            settings.QDRANT_EMBEDDING_MODEL,
-        )
-        return ExerciseVectorService(repository=repo, embedding_model=model)
+        logger.info("ExerciseVectorService 초기화 완료 [url=%s]", settings.QDRANT_URL)
+        return ExerciseVectorService(repository=repo, embedding_model=_embedding_model)
 
     except Exception as e:
         logger.warning("ExerciseVectorService 초기화 실패 — 벡터 upsert 비활성화: %s", e)
@@ -290,36 +306,58 @@ def _create_exercise_vector_service() -> ExerciseVectorService:
 def _create_user_activity_vector_service() -> UserActivityVectorService:
     """UserActivityVectorService 싱글턴 생성.
 
-    성공: QdrantUserActivityVectorRepository + SentenceTransformer 조합
+    성공: QdrantUserActivityVectorRepository + _embedding_model 공유
     실패: repository=None, embedding_model=None (비활성화 모드)
-
-    환경변수: _create_exercise_vector_service() 동일
-    TODO: 임베딩 모델 다양화 — SentenceTransformer 외 클라우드 API 지원
     """
     try:
-        from sentence_transformers import SentenceTransformer
-
         from app.data.qdrant_client import get_qdrant_client
         from app.data.user_activity_repository import QdrantUserActivityVectorRepository
 
         client = get_qdrant_client()
-        model = SentenceTransformer(settings.QDRANT_EMBEDDING_MODEL)
         repo = QdrantUserActivityVectorRepository(client)
-        logger.info(
-            "UserActivityVectorService 초기화 완료 [url=%s, model=%s]",
-            settings.QDRANT_URL,
-            settings.QDRANT_EMBEDDING_MODEL,
-        )
-        return UserActivityVectorService(repository=repo, embedding_model=model)
+        logger.info("UserActivityVectorService 초기화 완료 [url=%s]", settings.QDRANT_URL)
+        return UserActivityVectorService(repository=repo, embedding_model=_embedding_model)
 
     except Exception as e:
         logger.warning("UserActivityVectorService 초기화 실패 — 벡터 upsert 비활성화: %s", e)
         return UserActivityVectorService(repository=None, embedding_model=None)
 
 
+def _create_vector_recommend_service() -> VectorRecommendService:
+    """VectorRecommendService 싱글턴 생성.
+
+    성공: QdrantExerciseVectorRepository + _embedding_model + _llm_client 공유
+    실패: exercise_repo=None, embedding_model=None (비활성화 모드)
+          → recommend_routines() 호출 시 ConfigurationError raise
+    LLM: Qdrant 비활성화와 무관하게 _llm_client 항상 주입 (reason 생성용)
+    """
+    try:
+        from app.data.exercise_vector_repository import QdrantExerciseVectorRepository
+        from app.data.qdrant_client import get_qdrant_client
+
+        client = get_qdrant_client()
+        repo = QdrantExerciseVectorRepository(client)
+        logger.info("VectorRecommendService 초기화 완료 [url=%s]", settings.QDRANT_URL)
+        return VectorRecommendService(
+            exercise_repo=repo,
+            embedding_model=_embedding_model,
+            llm_client=_llm_client,
+        )
+
+    except Exception as e:
+        logger.warning("VectorRecommendService 초기화 실패 — 비활성화: %s", e)
+        return VectorRecommendService(
+            exercise_repo=None,
+            embedding_model=None,
+            llm_client=_llm_client,
+        )
+
+
 # [Group A] Vector 서비스 싱글턴
+_embedding_model = _create_embedding_model()
 _exercise_vector_svc: ExerciseVectorService = _create_exercise_vector_service()
 _user_activity_vec_svc: UserActivityVectorService = _create_user_activity_vector_service()
+_vector_recommend_svc: VectorRecommendService = _create_vector_recommend_service()
 
 
 def get_exercise_vector_service() -> ExerciseVectorService:
@@ -340,3 +378,46 @@ def get_user_activity_vector_service() -> UserActivityVectorService:
     의존: _user_activity_vec_svc (싱글턴)
     """
     return _user_activity_vec_svc
+
+
+def get_task_service_vectorsearch(
+    store: TaskStore = Depends(get_task_store),
+    checker: ColdStartChecker = Depends(get_cold_start_checker),
+) -> TaskService:
+    """[Group B] 벡터 검색용 TaskService 생성 — Depends(get_task_service_vectorsearch) 사용.
+
+    _vector_recommend_svc 싱글턴을 TaskService에 주입합니다.
+    Qdrant 미연결 시 비활성화 인스턴스가 주입되며,
+    run_vectorbased_recommendation() 실행 시 ConfigurationError → FAILED 처리됩니다.
+
+    의존:
+      store                ← get_task_store()  (싱글턴)
+      checker              ← get_cold_start_checker()  (싱글턴)
+      _callback_client     (싱글턴)
+      _vector_recommend_svc (싱글턴)
+      get_recommend_service_v2()   (per-request, fallback용)
+      get_response_builder_v2()    (per-request)
+    """
+    return TaskService(
+        store=store,
+        recommend_service=get_recommend_service_v2(),
+        response_builder=get_response_builder_v2(),
+        callback_client=_callback_client,
+        cold_start_checker=checker,
+        vector_recommend_service=_vector_recommend_svc,
+    )
+
+
+def get_task_executor_vectorsearch(
+    background_tasks: BackgroundTasks,
+    task_service: TaskService = Depends(get_task_service_vectorsearch),
+) -> TaskExecutor:
+    """[Group B] 벡터 검색용 TaskExecutor 생성 — Depends(get_task_executor_vectorsearch) 사용.
+
+    submit_vectorsearch()를 호출하는 엔드포인트에서 사용합니다.
+
+    의존:
+      background_tasks ← FastAPI per-request 자동 주입
+      task_service     ← get_task_service_vectorsearch() (per-request)
+    """
+    return BackgroundTaskExecutor(background_tasks, task_service)

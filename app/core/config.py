@@ -10,6 +10,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 기본 경로 상수
+# TODO: Constants 한곳에서 중앙 집중 관리
 _BASE_DIR = Path(__file__).parent.parent  # app/
 _PROJECT_ROOT = _BASE_DIR.parent  # project root
 _DATA_DIR = _BASE_DIR / "data"

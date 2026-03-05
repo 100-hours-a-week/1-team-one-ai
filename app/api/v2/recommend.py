@@ -8,15 +8,21 @@ DI 배선은 app/api/deps.py 참조.
   - TaskExecutor     : get_task_executor()      → BackgroundTaskExecutor / CeleryTaskExecutor
   - ColdStartChecker : get_cold_start_checker() → DefaultColdStartChecker / ActivityBasedColdStartChecker
 
-- POST /routines          : 추천 요청 접수 (202 즉시 반환)
-- GET  /routines/{task_id}: 추천 상태 조회 (폴링)
+- POST /routines              : LLM 추천 요청 접수 (202 즉시 반환)
+- POST /routines/vectorsearch : 벡터 검색 추천 요청 접수 (202 즉시 반환)
+- GET  /routines/{task_id}    : 추천 상태 조회 (폴링, 두 엔드포인트 공용)
 """
 
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.api.deps import get_task_executor, get_task_service
+from app.api.deps import (
+    get_task_executor,
+    get_task_executor_vectorsearch,
+    get_task_service,
+    get_task_service_vectorsearch,
+)
 from app.core.exceptions import AppError
 from app.schemas.v2.request import UserInputV2
 from app.schemas.v2.response import TaskAcceptedResponse, TaskResult
@@ -64,6 +70,53 @@ def create_recommendation(
         raise
     except Exception:
         logger.exception("추천 요청 처리 중 예기치 않은 오류 [taskId=%s]", user_input.taskId)
+        raise
+
+    return TaskAcceptedResponse(taskId=task.task_id, userId=task.user_id)
+
+
+@router.post(
+    "/routines/vectorsearch",
+    response_model=TaskAcceptedResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def create_vectorsearch_recommendation(
+    user_input: UserInputV2,
+    task_service: TaskService = Depends(get_task_service_vectorsearch),
+    executor: TaskExecutor = Depends(get_task_executor_vectorsearch),
+) -> TaskAcceptedResponse:
+    """
+    벡터 검색 기반 운동 루틴 추천 요청 접수 (V2: 비동기)
+
+    LLM 없이 Qdrant 유사도 검색으로 운동을 선정합니다.
+
+    1. Task 생성 및 저장
+    2. 백그라운드에서 벡터 검색 추천 처리 시작
+    3. taskId와 초기 상태 즉시 반환 (HTTP 202)
+
+    Args:
+    - user_input: 사용자 설문 + taskId + userId
+    - task_service: 벡터 검색용 TaskService (DI) → deps.get_task_service_vectorsearch
+    - executor: 벡터 검색용 BackgroundTaskExecutor (DI) → deps.get_task_executor_vectorsearch
+
+    결과 조회: GET /routines/{taskId} (기존 폴링 엔드포인트 공용)
+    """
+    logger.info(
+        "V2 벡터 검색 추천 요청 수신: taskId=%s, userId=%d, routineCount=%d",
+        user_input.taskId,
+        user_input.userId,
+        user_input.surveyData.routineCount,
+    )
+
+    try:
+        task = task_service.create_task(user_input)
+        executor.submit_vectorsearch(task.task_id)
+    except AppError:
+        raise
+    except Exception:
+        logger.exception(
+            "벡터 검색 추천 요청 처리 중 예기치 않은 오류 [taskId=%s]", user_input.taskId
+        )
         raise
 
     return TaskAcceptedResponse(taskId=task.task_id, userId=task.user_id)

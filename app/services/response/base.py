@@ -51,7 +51,7 @@ class CoreResponseBuilder:
         self._valid_exercise_ids: frozenset[int] = frozenset()
         self._exercise_type_by_id: dict[int, ExerciseType] = {}
         self._exercise_by_id: dict = {}
-        self._fallback_recommender: RuleBasedRecommender | None = None
+        self._fallback_recommender: RuleBasedRecommender | None = None  # 이게 None이 될 수가 있나??
         self._sorted_parts: list[tuple] | None = None
 
     def build_core(self, output: RoutineList, survey: UserSurvey) -> list[Routine]:
@@ -181,9 +181,7 @@ class CoreResponseBuilder:
 
         # routineOrder 보정
         # 혼합 루틴이 EYES 전용으로 변환된 경우 reason을 기본값으로 초기화
-        reason = (
-            "눈 피로 해소를 위한 눈 운동 루틴입니다." if mixed_converted else routine.reason
-        )
+        reason = "눈 피로 해소를 위한 눈 운동 루틴입니다." if mixed_converted else routine.reason
         return Routine(
             routineOrder=routine_order,
             reason=reason,
@@ -434,12 +432,10 @@ class CoreResponseBuilder:
         - (steps, mixed_converted): 보정된 스텝 리스트, 혼합 → EYES 전용으로 변환됐는지 여부
         """
         eyes_steps = [
-            s for s in steps
-            if self._exercise_type_by_id.get(s.exerciseId) == ExerciseType.EYES
+            s for s in steps if self._exercise_type_by_id.get(s.exerciseId) == ExerciseType.EYES
         ]
         body_steps = [
-            s for s in steps
-            if self._exercise_type_by_id.get(s.exerciseId) != ExerciseType.EYES
+            s for s in steps if self._exercise_type_by_id.get(s.exerciseId) != ExerciseType.EYES
         ]
 
         if eyes_steps and body_steps:
@@ -506,10 +502,13 @@ class CoreResponseBuilder:
         self, steps: list[RoutineStep], routine_order: int, current_time: int
     ) -> list[RoutineStep]:
         """시간 미달 시 rule-based 스텝 추가로 보충."""
+
+        assert self._fallback_recommender is not None
+
         needed_time = self.MIN_ROUTINE_TIME - current_time
         used_ids = {step.exerciseId for step in steps}
 
-        filler_steps = self._fallback_recommender.get_filler_steps(
+        filler_steps = self._fallback_recommender.get_filler_steps(  # type: ignore
             target_time=needed_time,
             exclude_ids=used_ids,
             sorted_parts=self._sorted_parts,
@@ -540,6 +539,9 @@ class CoreResponseBuilder:
         self, steps: list[RoutineStep], routine_order: int, total_time: int
     ) -> list[RoutineStep]:
         """최대 시간 초과 시 뒤에서부터 스텝 제거 (양측 운동 규칙 준수)"""
+
+        assert self._fallback_recommender is not None
+
         default_step_time = 60
         excess_time = total_time - self.MAX_ROUTINE_TIME
         result = list(steps)
@@ -576,7 +578,7 @@ class CoreResponseBuilder:
                             removed_time += popped1.limitTime + popped2.limitTime
 
                             used_ids = {s.exerciseId for s in result}
-                            filler_steps = self._fallback_recommender.get_filler_steps(
+                            filler_steps = self._fallback_recommender.get_filler_steps(  # type: ignore
                                 target_time=default_step_time,
                                 exclude_ids=used_ids,
                                 sorted_parts=self._sorted_parts,

@@ -110,6 +110,7 @@ def qdrant_diagnostics() -> QdrantDiagnosticsResponse:
                 )
             else:
                 collection_infos.append(CollectionInfo(name=col, status="missing"))
+
         except Exception as e:
             logger.warning("컬렉션 %s 조회 실패: %s", col, e)
             collection_infos.append(CollectionInfo(name=col, status="error"))

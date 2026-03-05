@@ -38,6 +38,20 @@ class ExerciseVectorRepository(Protocol):
         """
         ...
 
+    def search(
+        self,
+        query_vector: list[float],
+        limit: int = 20,
+        score_threshold: float = 0.5,
+    ) -> list[models.ScoredPoint]:
+        """
+        쿼리 벡터와 유사한 운동을 검색합니다.
+
+        Returns:
+        - 유사도 순으로 정렬된 ScoredPoint 목록
+        """
+        ...
+
 
 # ── Interface ──────────────────────────────────────────────────────────
 
@@ -79,6 +93,30 @@ class QdrantExerciseVectorRepository(ExerciseVectorRepository):
             record_collection_update(COLLECTION_NAME)
 
             return len(points)
+        except Exception as e:
+            raise translate_qdrant_error(e) from e
+
+    def search(
+        self,
+        query_vector: list[float],
+        limit: int = 20,
+        score_threshold: float = 0.5,
+    ) -> list[models.ScoredPoint]:
+        """
+        쿼리 벡터와 유사한 운동을 검색합니다.
+
+        Returns:
+        - 유사도 순으로 정렬된 ScoredPoint 목록
+        """
+        try:
+            response = self._client.query_points(
+                collection_name=COLLECTION_NAME,
+                query=query_vector,
+                limit=limit,
+                score_threshold=score_threshold,
+                with_payload=True,
+            )
+            return response.points
         except Exception as e:
             raise translate_qdrant_error(e) from e
 

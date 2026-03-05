@@ -21,6 +21,8 @@ from app.schemas.common import UserSurvey
 
 if TYPE_CHECKING:
     from app.data.exercise_vector_repository import ExerciseVectorRepository
+    from app.domain.exercise import BaseExercise
+    from app.domain.routine import RoutineStep
     from app.services.llm_clients.base import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -166,9 +168,9 @@ class VectorRecommendService:
 
     def _group_bilateral_pairs(
         self,
-        hits: list,
-        exercises_by_id: dict,
-    ) -> list[list]:
+        hits: list[Any],
+        exercises_by_id: dict[int, BaseExercise],
+    ) -> list[list[Any]]:
         """
         bilateral pair 운동을 같은 그룹으로 묶어 반환.
 
@@ -206,7 +208,7 @@ class VectorRecommendService:
 
     def _build_routine_list(
         self,
-        hits: list,  # list[ScoredPoint]
+        hits: list[Any],  # list[ScoredPoint]
         routine_count: int,
         survey: UserSurvey,
     ) -> RoutineList:
@@ -226,7 +228,7 @@ class VectorRecommendService:
 
         # 유효한 exerciseId를 가진 hit만 필터링 (중복 제거)
         seen: set[int] = set()
-        valid_hits: list = []
+        valid_hits: list[Any] = []
         for hit in hits:
             ex_id = int(hit.id)
             if ex_id in exercises_by_id and ex_id not in seen:
@@ -305,9 +307,9 @@ class VectorRecommendService:
 
     def _generate_reason(
         self,
-        steps: list,
+        steps: list[RoutineStep],
         survey: UserSurvey,
-        exercises_by_id: dict,
+        exercises_by_id: dict[int, BaseExercise],
     ) -> str:
         """
         루틴 구성 운동과 설문 응답을 바탕으로 LLM이 reason을 생성합니다.
@@ -320,13 +322,13 @@ class VectorRecommendService:
         try:
             from app.prompts.v2.reason import REASON_SYSTEM_PROMPT, build_reason_prompt
 
-            exercise_names = [
-                exercises_by_id[step.exerciseId].name
+            exercises = [
+                exercises_by_id[step.exerciseId]
                 for step in steps
                 if step.exerciseId in exercises_by_id
             ]
-            logger.debug("reason LLM 호출 [exercises=%s]", exercise_names)
-            prompt = build_reason_prompt(survey, exercise_names)
+            logger.debug("reason LLM 호출 [exercises=%s]", [ex.name for ex in exercises])
+            prompt = build_reason_prompt(survey, exercises)
             reason = self._llm.generate(REASON_SYSTEM_PROMPT, prompt).strip()
             logger.debug("reason LLM 결과: %s", reason)
             return reason

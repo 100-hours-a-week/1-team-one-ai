@@ -61,7 +61,7 @@ class ActivityBasedColdStartChecker:
 
     def is_cold_start(self, user_id: int) -> bool:
         try:
-            is_non_cold = self._repository.exists(user_id)
+            is_non_cold = self._repository.get_vector(user_id) is not None
             logger.debug(
                 "Cold start 판단 [user_id=%d]: %s (활동 프로필 기반)",
                 user_id,

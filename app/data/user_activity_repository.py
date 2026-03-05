@@ -4,7 +4,7 @@
 
 UserActivityVectorRepository (Protocol)
   - upsert(user_id, vector, payload) → None
-  - exists(user_id) → bool
+  - get_vector(user_id) → list[float] | None
 
 QdrantUserActivityVectorRepository
   - 컬렉션이 없으면 자동 생성 (벡터 차원은 upsert 시 추론)
@@ -36,8 +36,9 @@ class UserActivityVectorRepository(Protocol):
         """사용자 활동 프로필을 벡터DB에 저장 (신규 생성 또는 갱신)"""
         ...
 
-    def exists(self, user_id: int) -> bool:
-        """해당 user_id의 프로필이 이미 존재하는지 확인"""
+    def get_vector(self, user_id: int) -> list[float] | None:
+        """해당 user_id의 활동 프로필 벡터를 반환 (없으면 None).
+        벡터 존재 여부로 cold start 판별에도 사용 — None이면 cold start."""
         ...
 
 
@@ -49,7 +50,7 @@ class QdrantUserActivityVectorRepository:
     UserActivityVectorRepository의 Qdrant 구현체.
 
     - upsert: user_id를 Point id로 사용 → 동일 user_id 재호출 시 갱신
-    - exists: retrieve로 단건 조회, 결과 없으면 False 반환
+    - get_vector: retrieve로 단건 조회 (with_vectors=True), 없으면 None 반환
     - 컬렉션 미존재 시 upsert 최초 호출에서 자동 생성
     - 거리 기준: Cosine (시맨틱 유사도)
     # TODO: 거리 기준을 컬렉션 단위로 유연하게 설정할 수 있도록 개선 가능
@@ -84,23 +85,45 @@ class QdrantUserActivityVectorRepository:
         except Exception as e:
             raise translate_qdrant_error(e) from e
 
-    def exists(self, user_id: int) -> bool:
+    def get_vector(self, user_id: int) -> list[float] | None:
         """
-        해당 user_id의 프로필이 이미 존재하는지 확인
-        ActivityBasedColdStartChecker.is_cold_start에서 사용
+        해당 user_id의 활동 프로필 벡터를 반환 (없으면 None).
+        VectorRecommendService의 non-cold start 벡터 블렌딩에서 사용.
         """
         try:
-            # 컬렉션 자체가 없으면 유저도 없음 → False
             if not self._client.collection_exists(COLLECTION_NAME):
-                return False
+                logger.debug(
+                    "활동 프로필 컬렉션 없음 — cold start로 처리 [user_id=%d, collection=%s]",
+                    user_id,
+                    COLLECTION_NAME,
+                )
+                return None
 
             results = self._client.retrieve(
                 collection_name=COLLECTION_NAME,
                 ids=[user_id],
                 with_payload=False,
-                with_vectors=False,
+                with_vectors=True,
             )
-            return len(results) > 0
+            if not results:
+                logger.debug(
+                    "활동 프로필 Point 없음 — cold start로 처리 [user_id=%d]", user_id
+                )
+                return None
+
+            vector = results[0].vector
+            # isinstance(vector, list) 이후에도 Pylance는 list[list[...]] 케이스를 좁히지 못함.
+            # 첫 원소가 list면 named/multi-vector 컬렉션 → 지원하지 않는 형식
+            if not isinstance(vector, list) or (vector and isinstance(vector[0], list)):
+                logger.warning("예상치 못한 벡터 타입 [user_id=%d]: %s", user_id, type(vector))
+                return None
+
+            logger.debug(
+                "활동 프로필 벡터 조회 완료 — non-cold start [user_id=%d, dim=%d]",
+                user_id,
+                len(vector),
+            )
+            return vector  # type: ignore[return-value]
 
         except Exception as e:
             raise translate_qdrant_error(e) from e

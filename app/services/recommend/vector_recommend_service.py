@@ -21,6 +21,7 @@ from app.schemas.common import UserSurvey
 
 if TYPE_CHECKING:
     from app.data.exercise_vector_repository import ExerciseVectorRepository
+    from app.data.user_activity_repository import UserActivityVectorRepository
     from app.domain.exercise import BaseExercise
     from app.domain.routine import RoutineStep
     from app.services.llm_clients.base import LLMClient
@@ -34,6 +35,11 @@ SEVERITY_THRESHOLD = 2  # 이 값 이상인 문항만 쿼리에 포함
 DEFAULT_EXERCISES_PER_ROUTINE = 4
 DEFAULT_SEARCH_LIMIT = 30
 DEFAULT_SCORE_THRESHOLD = 0.4  # multilingual-e5 기준 충분한 하한값
+
+# Non-cold start 벡터 블렌딩 가중치
+# 사용자 활동 이력을 설문보다 높게 반영 (행동 기반 프로필 우선)
+SURVEY_VECTOR_WEIGHT = 0.4
+ACTIVITY_VECTOR_WEIGHT = 0.6
 
 # questionContent 키워드 → 쿼리용 건강 상태 문구 매핑
 # 순서대로 questionContent에서 첫 매칭을 사용
@@ -68,10 +74,12 @@ class VectorRecommendService:
         exercise_repo: ExerciseVectorRepository | None,
         embedding_model: Any | None,  # SentenceTransformer 등 encode() 지원 모델
         llm_client: LLMClient | None = None,
+        user_activity_repo: UserActivityVectorRepository | None = None,
     ) -> None:
         self._repo = exercise_repo
         self._model = embedding_model
         self._llm = llm_client
+        self._user_activity_repo = user_activity_repo
 
     def recommend_routines(self, survey: UserSurvey, user_id: int) -> RoutineList:
         """
@@ -96,7 +104,8 @@ class VectorRecommendService:
         query = self._build_query(survey)
         logger.debug("벡터 검색 쿼리 [user_id=%d]: %s", user_id, query)
 
-        query_vector: list[float] = self._model.encode(query).tolist()
+        survey_vector: list[float] = self._model.encode(query).tolist()
+        query_vector = self._get_query_vector(survey_vector, user_id)
 
         hits = self._repo.search(
             query_vector=query_vector,
@@ -112,6 +121,68 @@ class VectorRecommendService:
         return self._build_routine_list(hits, survey.routineCount, survey)
 
     # ── private ───────────────────────────────────────────────────────────────
+
+    def _get_query_vector(self, survey_vector: list[float], user_id: int) -> list[float]:
+        """
+        설문 벡터와 사용자 활동 벡터를 결합하여 최종 검색 벡터를 반환.
+
+        - user_activity_repo 미주입 → 설문 벡터만 사용 (cold start 경로)
+        - Qdrant에 user_id 프로필 없음 → 설문 벡터만 사용 (cold start)
+        - 프로필 존재 → 가중 합 블렌딩 (non-cold start)
+        - 조회 중 예외 → 설문 벡터 fallback + WARNING 로그
+        """
+        if self._user_activity_repo is None:
+            return survey_vector
+
+        try:
+            activity_vector = self._user_activity_repo.get_vector(user_id)
+        except Exception as e:
+            logger.warning(
+                "사용자 활동 벡터 조회 실패 — 설문 벡터만 사용 [user_id=%d]: %s", user_id, e
+            )
+            return survey_vector
+
+        if activity_vector is None:
+            logger.debug("Cold start 사용자 — 설문 벡터만 사용 [user_id=%d]", user_id)
+            return survey_vector
+
+        logger.info(
+            "Non-cold start — 사용자 활동 벡터 블렌딩 [user_id=%d, survey=%.1f, activity=%.1f]",
+            user_id,
+            SURVEY_VECTOR_WEIGHT,
+            ACTIVITY_VECTOR_WEIGHT,
+        )
+        return self._blend_vectors(survey_vector, activity_vector)
+
+    def _blend_vectors(
+        self, survey_vector: list[float], activity_vector: list[float]
+    ) -> list[float]:
+        """
+        설문 벡터와 사용자 활동 벡터를 가중 합으로 결합.
+
+        두 벡터가 동일한 SentenceTransformer로 생성되었으므로 같은 의미 공간에 위치.
+        Qdrant cosine 검색이 내부적으로 정규화하므로 블렌딩 후 별도 정규화 불필요.
+        """
+        if len(survey_vector) != len(activity_vector):
+            logger.warning(
+                "벡터 차원 불일치 (survey=%d, activity=%d) — 설문 벡터만 사용",
+                len(survey_vector),
+                len(activity_vector),
+            )
+            return survey_vector
+
+        blended = [
+            SURVEY_VECTOR_WEIGHT * s + ACTIVITY_VECTOR_WEIGHT * a
+            for s, a in zip(survey_vector, activity_vector)
+        ]
+        logger.debug(
+            "벡터 블렌딩 완료 [dim=%d, survey_norm=%.4f, activity_norm=%.4f, blended_norm=%.4f]",
+            len(blended),
+            sum(v * v for v in survey_vector) ** 0.5,
+            sum(v * v for v in activity_vector) ** 0.5,
+            sum(v * v for v in blended) ** 0.5,
+        )
+        return blended
 
     def _build_query(self, survey: UserSurvey) -> str:
         """

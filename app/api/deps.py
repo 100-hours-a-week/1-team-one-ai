@@ -326,22 +326,28 @@ def _create_user_activity_vector_service() -> UserActivityVectorService:
 def _create_vector_recommend_service() -> VectorRecommendService:
     """VectorRecommendService 싱글턴 생성.
 
-    성공: QdrantExerciseVectorRepository + _embedding_model + _llm_client 공유
-    실패: exercise_repo=None, embedding_model=None (비활성화 모드)
+    성공: QdrantExerciseVectorRepository + QdrantUserActivityVectorRepository
+          + _embedding_model + _llm_client 공유
+    실패: exercise_repo=None, embedding_model=None, user_activity_repo=None (비활성화 모드)
           → recommend_routines() 호출 시 ConfigurationError raise
     LLM: Qdrant 비활성화와 무관하게 _llm_client 항상 주입 (reason 생성용)
+    user_activity_repo: non-cold start 사용자의 활동 벡터 조회용
+                        Qdrant 미연결 시 None → 설문 벡터만으로 검색 (cold start 경로)
     """
     try:
         from app.data.exercise_vector_repository import QdrantExerciseVectorRepository
         from app.data.qdrant_client import get_qdrant_client
+        from app.data.user_activity_repository import QdrantUserActivityVectorRepository
 
         client = get_qdrant_client()
-        repo = QdrantExerciseVectorRepository(client)
+        exercise_repo = QdrantExerciseVectorRepository(client)
+        user_activity_repo = QdrantUserActivityVectorRepository(client)
         logger.info("VectorRecommendService 초기화 완료 [url=%s]", settings.QDRANT_URL)
         return VectorRecommendService(
-            exercise_repo=repo,
+            exercise_repo=exercise_repo,
             embedding_model=_embedding_model,
             llm_client=_llm_client,
+            user_activity_repo=user_activity_repo,
         )
 
     except Exception as e:
@@ -350,6 +356,7 @@ def _create_vector_recommend_service() -> VectorRecommendService:
             exercise_repo=None,
             embedding_model=None,
             llm_client=_llm_client,
+            user_activity_repo=None,
         )
 
 

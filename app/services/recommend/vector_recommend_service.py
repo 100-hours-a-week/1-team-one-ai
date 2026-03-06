@@ -110,6 +110,14 @@ class VectorRecommendService:
         self._llm = llm_client
         self._user_activity_repo = user_activity_repo
 
+    def is_available(self) -> bool:
+        """벡터 검색 서비스 활성화 여부 (Qdrant + 임베딩 모델 준비 상태).
+
+        O(1) 속성 확인 — 네트워크 호출 없음.
+        API 레이어에서 요청 수락 전 조기 검사용.
+        """
+        return self._repo is not None and self._model is not None
+
     def recommend_routines(self, survey: UserSurvey, user_id: int) -> RoutineList:
         """
         설문 데이터를 기반으로 벡터 검색 추천을 수행합니다.

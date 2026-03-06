@@ -136,12 +136,39 @@ def get_response_builder_v2() -> V2ResponseBuilder:
 # [2] Task / Async
 #   _task_store        : InMemoryTaskStore (TODO: RedisTaskStore)
 #   _callback_client   : coreBE 콜백 전송 HTTP 클라이언트
-#   _cold_start_checker: DefaultColdStartChecker (TODO: ActivityBasedColdStartChecker)
+#   _qdrant_available  : 기동 시 1회 연결 확인 — 모든 Qdrant 관련 팩토리가 공유
+#   _cold_start_checker: ActivityBasedColdStartChecker | DefaultColdStartChecker
 #   get_task_store()   : TaskStore DI — 교체 지점
 #   get_cold_start_checker(): ColdStartChecker DI — 교체 지점
 #   get_task_service() : per-request — store + checker + [1] 팩토리 조합
 #   get_task_executor(): per-request — FastAPI BackgroundTasks 래핑 (TODO: Celery)
 # ==============================================================================
+
+
+def _check_qdrant_connectivity() -> bool:
+    """기동 시 Qdrant 실제 네트워크 연결을 1회 확인한다.
+
+    verify_connection()은 get_collections() 호출로 실제 통신 여부를 검증한다.
+    get_qdrant_client()는 QdrantClient 객체만 생성하고 연결하지 않으므로,
+    여기서 verify_connection()을 별도로 호출해야 연결 가능 여부를 알 수 있다.
+
+    반환값은 _qdrant_available 플래그로 저장되어
+    _create_cold_start_checker, _create_*_vector_service 등 모든 팩토리가 공유한다.
+    연결 상태는 프로세스 수명 내 변하지 않는다고 가정한다 (재기동 시 재확인).
+
+    [책임 분리]
+    - verify_connection()  : 인프라 레이어 — "Qdrant와 통신 가능한가?" 판단
+    - _check_qdrant_connectivity() : DI 레이어 — "어떤 구현체를 연결할지" 결정을 위한 사전 확인
+    - get_qdrant_client()  : 인프라 레이어 — "QdrantClient 객체 반환" (네트워크 확인 책임 없음)
+    """
+    from app.data.qdrant_client import verify_connection
+
+    ok, err = verify_connection()
+    if ok:
+        logger.info("Qdrant 연결 확인 완료 [url=%s]", settings.QDRANT_URL)
+    else:
+        logger.warning("Qdrant 미연결 — 벡터 기능 비활성화 [url=%s]: %s", settings.QDRANT_URL, err)
+    return ok
 
 
 def _create_cold_start_checker() -> ColdStartChecker:
@@ -151,8 +178,10 @@ def _create_cold_start_checker() -> ColdStartChecker:
     실패: DefaultColdStartChecker (항상 cold start=True, 추천 흐름 정상 동작)
 
     Qdrant 미연결 상태에서도 추천 API는 정상 동작한다.
-    TODO: Qdrant 연동 완료 시 이 함수가 자동으로 ActivityBased를 선택함 (변경 불필요)
     """
+    if not _qdrant_available:
+        return DefaultColdStartChecker()
+
     try:
         from app.data.qdrant_client import get_qdrant_client
         from app.data.user_activity_repository import QdrantUserActivityVectorRepository
@@ -175,6 +204,7 @@ def _create_cold_start_checker() -> ColdStartChecker:
 # TODO: BackgroundTaskExecutor 교체 → CeleryTaskExecutor (get_task_executor 함께 수정)
 _task_store: TaskStore = InMemoryTaskStore()
 _callback_client: CallbackClient = CallbackClient()
+_qdrant_available: bool = _check_qdrant_connectivity()  # 1회 연결 확인 — 이후 모든 팩토리가 공유
 _cold_start_checker: ColdStartChecker = _create_cold_start_checker()
 
 
@@ -289,6 +319,9 @@ def _create_exercise_vector_service() -> ExerciseVectorService:
       QDRANT_URL    : 연결 대상 (기본 http://localhost:6333)
       QDRANT_API_KEY: 클라우드 인스턴스용 (로컬 생략)
     """
+    if not _qdrant_available:
+        return ExerciseVectorService(repository=None, embedding_model=None)
+
     try:
         from app.data.exercise_vector_repository import QdrantExerciseVectorRepository
         from app.data.qdrant_client import get_qdrant_client
@@ -309,6 +342,9 @@ def _create_user_activity_vector_service() -> UserActivityVectorService:
     성공: QdrantUserActivityVectorRepository + _embedding_model 공유
     실패: repository=None, embedding_model=None (비활성화 모드)
     """
+    if not _qdrant_available:
+        return UserActivityVectorService(repository=None, embedding_model=None)
+
     try:
         from app.data.qdrant_client import get_qdrant_client
         from app.data.user_activity_repository import QdrantUserActivityVectorRepository
@@ -334,6 +370,14 @@ def _create_vector_recommend_service() -> VectorRecommendService:
     user_activity_repo: non-cold start 사용자의 활동 벡터 조회용
                         Qdrant 미연결 시 None → 설문 벡터만으로 검색 (cold start 경로)
     """
+    if not _qdrant_available:
+        return VectorRecommendService(
+            exercise_repo=None,
+            embedding_model=None,
+            llm_client=_llm_client,
+            user_activity_repo=None,
+        )
+
     try:
         from app.data.exercise_vector_repository import QdrantExerciseVectorRepository
         from app.data.qdrant_client import get_qdrant_client
@@ -385,6 +429,16 @@ def get_user_activity_vector_service() -> UserActivityVectorService:
     의존: _user_activity_vec_svc (싱글턴)
     """
     return _user_activity_vec_svc
+
+
+def get_vector_recommend_service() -> VectorRecommendService:
+    """[Group A] VectorRecommendService 반환 — Depends(get_vector_recommend_service) 사용.
+
+    엔드포인트에서 is_available() 조기 검사용으로 사용한다.
+    Qdrant 미연결 시 비활성화 모드 인스턴스를 반환 (is_available() == False).
+    의존: _vector_recommend_svc (싱글턴)
+    """
+    return _vector_recommend_svc
 
 
 def get_task_service_vectorsearch(

@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     CALLBACK_URL: str | None = None
 
     # Qdrant
-    QDRANT_URL: str = "https://stage.raisedeveloper.com:6333"
+    QDRANT_URL: str = "http://localhost:6333"
     QDRANT_API_KEY: str | None = None  # 로컬 불필요, 클라우드 필수
     QDRANT_EMBEDDING_MODEL: str = "intfloat/multilingual-e5-small"
 

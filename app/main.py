@@ -12,6 +12,7 @@ from fastapi.exceptions import RequestValidationError
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import ValidationError
 
+from app.api.deps import get_exercise_vector_service
 from app.api.v1.router import router as v1_router
 from app.api.v2.router import router as v2_router
 from app.core.exceptions import (
@@ -45,6 +46,13 @@ except ValidationError as e:
     logger.error("exercises.json 검증 실패: %s", e)
 except Exception as e:
     logger.error("운동 데이터 로드 실패: %s", e)
+
+# 4. 운동 벡터 upsert (Qdrant 연결 시)
+result = get_exercise_vector_service().try_upsert_all(exercise_repository.raw_data)
+if result.upserted > 0:
+    logger.info("운동 벡터 upsert 완료: %d개", result.upserted)
+elif result.error_type:
+    logger.warning("운동 벡터 upsert 실패: %s — %s", result.error_type, result.error_message)
 
 
 app = FastAPI(

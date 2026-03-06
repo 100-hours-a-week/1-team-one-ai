@@ -21,6 +21,7 @@ from app.schemas.v2.task import TaskData
 from app.services.callback_client import CallbackClient
 from app.services.recommend.cold_start_checker import ColdStartChecker
 from app.services.recommend.recommend_service import RecommendService
+from app.services.recommend.vector_recommend_service import VectorRecommendService
 from app.services.response.v2 import V2ResponseBuilder
 from app.services.task.store import TaskStore
 
@@ -39,8 +40,8 @@ class TaskService:
         - Args: task_id: 조회할 Task ID
         - Returns: TaskResult 또는 None (존재하지 않을 경우)
 
-    - run_recommendation: 백그라운드 추천 처리 + 콜백 전송
-
+    - run_recommendation: LLM 기반 백그라운드 추천 처리 + 콜백 전송
+    - run_vectorbased_recommendation: 벡터 검색 기반 백그라운드 추천 처리 + 콜백 전송
     """
 
     def __init__(
@@ -50,12 +51,14 @@ class TaskService:
         response_builder: V2ResponseBuilder,
         callback_client: CallbackClient,
         cold_start_checker: ColdStartChecker,
+        vector_recommend_service: VectorRecommendService | None = None,
     ) -> None:
         self._store = store
         self._recommend_service = recommend_service
         self._response_builder = response_builder
         self._callback_client = callback_client
         self._cold_start_checker = cold_start_checker
+        self._vector_recommend_service = vector_recommend_service
 
     def create_task(self, user_input: UserInputV2) -> TaskData:
         """
@@ -74,7 +77,7 @@ class TaskService:
             created_at=datetime.now(UTC),
         )
         self._store.save(task)
-        logger.info("Task 생성 [task_id=%s, user_id=%d]", task.task_id, task.user_id)
+        logger.info("Task 생성 및 저장 완료 [task_id=%s, user_id=%d]", task.task_id, task.user_id)
         return task
 
     def get_task_status(self, task_id: str) -> TaskResult | None:
@@ -188,6 +191,91 @@ class TaskService:
             logger.exception("예상치 못한 오류 [task_id=%s, user_id=%d]", task_id, user_id)
             self._handle_failure(task_id, f"unexpected error: {e}", user_id=user_id)
 
+    def run_vectorbased_recommendation(self, task_id: str) -> None:
+        """
+        백그라운드에서 실행되는 벡터 검색 기반 추천 처리 로직
+
+        1. 설문 → 쿼리 임베딩 → Qdrant 유사도 검색
+            VectorRecommendService.recommend_routines() 내부에서 다음 흐름으로 처리:
+            1. _build_query(survey) → query string
+            2. embedding_model.encode(query) → vector
+            3. exercise_repo.search(vector, limit=20) → hits
+            4. _build_routine_list(hits, survey.routineCount) → RoutineList
+
+        2. 결과 검증 + 응답 빌드 (V2ResponseBuilder → TaskResult)
+        3. Task 상태 업데이트
+        4. coreBE 콜백 전송
+
+
+
+        실패 시에도 콜백을 전송합니다.
+        """
+        from app.core.exceptions import ConfigurationError
+
+        task = self._store.get(task_id)
+
+        if task is None:
+            logger.error("Task를 찾을 수 없음: %s", task_id)
+            return
+
+        survey = task.request_data.surveyData
+        user_id = task.user_id
+
+        try:
+            if self._vector_recommend_service is None:
+                raise ConfigurationError("VectorRecommendService가 주입되지 않았습니다.")
+
+            logger.info(
+                "벡터 검색 추천 시작 [task_id=%s, user_id=%d]",
+                task_id,
+                user_id,
+            )
+
+            # Step 1: 설문 분석 + 쿼리 생성
+            self._update_progress(task_id, ProgressStep.HEALTH_SCORE)
+
+            # Step 2: 벡터 검색 (임베딩 + Qdrant)
+            self._update_progress(task_id, ProgressStep.EXERCISE_SEARCH)
+            vector_output = self._vector_recommend_service.recommend_routines(
+                survey=survey, user_id=user_id
+            )
+
+            logger.debug(
+                "벡터 검색 결과 [task_id=%s, user_id=%d]: routines=%d",
+                task_id,
+                user_id,
+                len(vector_output.routines),
+            )
+
+            # Step 3: 결과 검증 + V2 응답 빌드
+            self._update_progress(task_id, ProgressStep.RESULT_VALIDATION)
+            result = self._response_builder.build(
+                vector_output, task_id=task_id, survey=survey, user_id=user_id
+            )
+
+            # Step 4: 완료 처리
+            self._store.update(
+                task_id,
+                status=TaskStatus.COMPLETED,
+                progress=PROGRESS_STEP_PERCENTAGE[ProgressStep.COMPLETED],
+                current_step=ProgressStep.COMPLETED.value,
+                result=result,
+                completed_at=result.completedAt,
+            )
+            logger.info("벡터 검색 추천 완료 [task_id=%s, user_id=%d]", task_id, user_id)
+
+            # Step 5: 콜백 전송 (성공)
+            self._send_callback(result)
+
+        except AppError as e:
+            self._handle_failure(task_id, str(e), user_id=user_id)
+
+        except Exception as e:
+            logger.exception(
+                "벡터 검색 추천 예상치 못한 오류 [task_id=%s, user_id=%d]", task_id, user_id
+            )
+            self._handle_failure(task_id, f"unexpected error: {e}", user_id=user_id)
+
     def _update_progress(self, task_id: str, step: ProgressStep) -> None:
         """진행 상태 업데이트"""
         self._store.update(
@@ -196,7 +284,7 @@ class TaskService:
             current_step=step.value,
         )
         logger.debug(
-            "진행 업데이트 [task_id=%s]: %s (%d%%)",
+            "진행 상태 업데이트 [task_id=%s]: %s (%d%%)",
             task_id,
             step.value,
             PROGRESS_STEP_PERCENTAGE[step],

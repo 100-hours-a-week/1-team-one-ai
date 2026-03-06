@@ -1,4 +1,10 @@
+# 1. 로깅 설정 — 라우터 import 전에 실행해야 외부 라이브러리 로그 억제가 적용됨
+# (라우터 import 시 deps.py가 실행되어 httpx 등이 로그를 출력할 수 있음)
 import logging
+from app.core.logging import setup_logging
+
+setup_logging()
+
 import os
 
 from fastapi import FastAPI
@@ -14,13 +20,9 @@ from app.core.exceptions import (
     internal_exception_handler,  # 500
     validation_exception_handler,  # 422
 )
-from app.core.logging import setup_logging
 from app.data.loader import exercise_repository, fetch_and_save_exercises
 
 logger = logging.getLogger(__name__)
-
-# 1. 로깅 설정
-setup_logging()
 
 logger.info("APP_ENV=%s", os.environ.get("APP_ENV", "dev"))
 

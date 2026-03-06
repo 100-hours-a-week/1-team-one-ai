@@ -9,18 +9,12 @@ import logging
 
 from fastapi import APIRouter
 
-from app.core.exceptions import AppError
+from app.core.exceptions import ExerciseDataError
 from app.data.loader import exercise_repository, fetch_and_save_exercises
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-class ExerciseDataError(AppError):
-    """운동 데이터 처리 실패 - 500"""
-
-    error_code = "EXERCISE_DATA_ERROR"
 
 
 @router.post("/exercises/update")

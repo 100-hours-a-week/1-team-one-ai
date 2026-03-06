@@ -139,6 +139,11 @@ class ExerciseRepository:
             len(self._exercise_ids),
         )
 
+    def get_all(self) -> tuple[BaseExercise, ...]:
+        """모든 운동 데이터를 반환합니다."""
+        self._ensure_loaded()
+        return self._exercises
+
     @property
     def exercise_ids(self) -> frozenset[int]:
         """유효한 exerciseId 집합 (유효성 검증용)."""

@@ -10,6 +10,7 @@ import logging
 from datetime import UTC, datetime
 
 from app.core.exceptions import AppError
+from app.data.qdrant_exceptions import QdrantError
 from app.schemas.common import TaskStatus
 from app.schemas.v2.request import UserInputV2
 from app.schemas.v2.response import (
@@ -200,13 +201,12 @@ class TaskService:
             1. _build_query(survey) → query string
             2. embedding_model.encode(query) → vector
             3. exercise_repo.search(vector, limit=20) → hits
-            4. _build_routine_list(hits, survey.routineCount) → RoutineList
+            4. _build_routine_list(hits, survey.routineCount) → RoutineList (fallback reason)
 
-        2. 결과 검증 + 응답 빌드 (V2ResponseBuilder → TaskResult)
-        3. Task 상태 업데이트
-        4. coreBE 콜백 전송
-
-
+        2. 결과 검증 + 보정 (V2ResponseBuilder → TaskResult)
+        3. LLM reason 생성 (검증 & 보정 완료된 최종 steps 기반)
+        4. Task 상태 업데이트
+        5. coreBE 콜백 전송
 
         실패 시에도 콜백을 전송합니다.
         """
@@ -247,13 +247,21 @@ class TaskService:
                 len(vector_output.routines),
             )
 
-            # Step 3: 결과 검증 + V2 응답 빌드
+            # Step 3: 결과 검증 + 보정 (유효성 검증, bilateral rule, 시간 보정)
             self._update_progress(task_id, ProgressStep.RESULT_VALIDATION)
             result = self._response_builder.build(
                 vector_output, task_id=task_id, survey=survey, user_id=user_id
             )
 
-            # Step 4: 완료 처리
+            # Step 4: LLM reason 생성 (검증 & 보정 완료된 최종 steps 기반)
+            if result.routines:
+                self._update_progress(task_id, ProgressStep.REASON_GENERATION)
+                reasoned_routines = self._vector_recommend_service.generate_reasons(
+                    result.routines, survey
+                )
+                result = result.model_copy(update={"routines": reasoned_routines})
+
+            # Step 5: 완료 처리
             self._store.update(
                 task_id,
                 status=TaskStatus.COMPLETED,
@@ -264,8 +272,17 @@ class TaskService:
             )
             logger.info("벡터 검색 추천 완료 [task_id=%s, user_id=%d]", task_id, user_id)
 
-            # Step 5: 콜백 전송 (성공)
+            # Step 6: 콜백 전송 (성공)
             self._send_callback(result)
+
+        except QdrantError as e:
+            logger.warning(
+                "Qdrant 오류 감지 — LLM 경로로 fallback [task_id=%s, user_id=%d]: %s",
+                task_id,
+                user_id,
+                e,
+            )
+            self.run_recommendation(task_id)
 
         except AppError as e:
             self._handle_failure(task_id, str(e), user_id=user_id)

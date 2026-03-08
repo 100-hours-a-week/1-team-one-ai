@@ -27,8 +27,13 @@ from app.schemas.common import RecommendationSummary, TaskStatus
 
 class ProgressStep(str, Enum):
     """
-    진행 단계별 메시지 (v1: LLM 추론 단계부터 시작)
-    - v2 이상에서는 HEALTH_SCORE, CATEGORY_PRIORITY, EXERCISE_SEARCH 추가
+    진행 단계별 메시지
+
+    LLM 경로:    HEALTH_SCORE(10) → EXERCISE_SEARCH(40) → LLM_INFERENCE(60) → RESULT_VALIDATION(75) → COMPLETED(100)
+    Vector 경로: HEALTH_SCORE(10) → EXERCISE_SEARCH(40) → RESULT_VALIDATION(75) → REASON_GENERATION(85) → COMPLETED(100)
+
+    - LLM_INFERENCE: LLM 경로 전용 (LLM이 루틴 전체를 구성)
+    - REASON_GENERATION: Vector 경로 전용 (검증 완료 후 LLM이 추천 이유만 생성)
     """
 
     # v2+ 전용
@@ -37,8 +42,9 @@ class ProgressStep(str, Enum):
     EXERCISE_SEARCH = "맞춤 운동 검색 중"  # 40%
 
     # v1~
-    LLM_INFERENCE = "AI가 최적의 루틴 구성 중"  # 60%
+    LLM_INFERENCE = "AI가 최적의 루틴 구성 중"  # 60% — LLM 경로 전용
     RESULT_VALIDATION = "최종 추천 결과 검증 중"  # 75%
+    REASON_GENERATION = "AI가 추천 이유를 생성 중"  # 85% — Vector 경로 전용
     COMPLETED = "운동 플랜 추천 완료!"  # 100%
 
     FAILED = "추천 실패"  # 0%
@@ -50,7 +56,8 @@ PROGRESS_STEP_PERCENTAGE: dict[ProgressStep, int] = {
     ProgressStep.CATEGORY_PRIORITY: 25,
     ProgressStep.EXERCISE_SEARCH: 40,
     ProgressStep.LLM_INFERENCE: 60,
-    ProgressStep.RESULT_VALIDATION: 75,
+    ProgressStep.RESULT_VALIDATION: 70,
+    ProgressStep.REASON_GENERATION: 80,
     ProgressStep.COMPLETED: 100,
 }
 

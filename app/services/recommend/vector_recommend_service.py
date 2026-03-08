@@ -92,10 +92,10 @@ class VectorRecommendService:
     """
     Qdrant 벡터 검색 기반 추천 서비스.
 
-    - LLM 없이 설문 → 임베딩 → 유사도 검색 → RoutineList 변환
+    - 설문 → 임베딩 → 유사도 검색 → RoutineList 변환
     - repository / embedding_model 이 None 이면 ConfigurationError (비활성화 상태)
     - EYES 운동은 별도 루틴으로 분리 (룰베이스 방식과 동일)
-    - routine.reason은 LLM으로 생성 (llm_client 없으면 기본 문구 사용)
+    - routine.reason은 검증 & 보정 완료 후 generate_reasons()로 별도 생성
     """
 
     def __init__(
@@ -327,7 +327,7 @@ class VectorRecommendService:
         - create_routinestep_from_exercise()로 RoutineStep 생성
         - EYES 운동은 별도 루틴으로 분리 (룰베이스 방식과 동일)
         - body 운동은 routine_count 개의 Routine으로 균등 분배
-        - routine.reason은 LLM으로 생성 (실패 시 기본 문구)
+        - routine.reason은 기본 문구로 설정 (LLM reason은 검증 & 보정 완료 후 generate_reasons()에서 생성)
         - 이후 V2ResponseBuilder(CoreResponseBuilder)가 유효성 검증 및 보완 수행
         """
         from app.data.loader import exercise_repository
@@ -381,11 +381,10 @@ class VectorRecommendService:
                     create_routinestep_from_exercise(exercises_by_id[int(h.id)], step_order=j + 1)
                     for j, h in enumerate(chunk)
                 ]
-                reason = self._generate_reason(steps, survey, exercises_by_id)
                 routines.append(
                     Routine(
                         routineOrder=len(routines) + 1,
-                        reason=reason,
+                        reason=_build_fallback_reason(steps, exercises_by_id),
                         steps=steps,
                     )
                 )
@@ -396,11 +395,10 @@ class VectorRecommendService:
                 create_routinestep_from_exercise(exercises_by_id[int(h.id)], step_order=j + 1)
                 for j, h in enumerate(eyes_hits)
             ]
-            reason = self._generate_reason(eyes_steps, survey, exercises_by_id)
             routines.append(
                 Routine(
                     routineOrder=len(routines) + 1,
-                    reason=reason,
+                    reason=_build_fallback_reason(eyes_steps, exercises_by_id),
                     steps=eyes_steps,
                 )
             )
@@ -411,6 +409,37 @@ class VectorRecommendService:
             [[step.exerciseId for step in r.steps] for r in routines],
         )
         return RoutineList(routines=routines)
+
+    def generate_reasons(self, routines: list[Routine], survey: UserSurvey) -> list[Routine]:
+        """
+        검증 & 보정 완료된 루틴에 LLM reason을 적용합니다.
+
+        EYES 전용 루틴은 LLM 호출 없이 fallback reason을 사용합니다.
+        LLM 미설정 또는 호출 실패 시 기존 fallback reason을 유지합니다.
+        """
+        from app.data.loader import exercise_repository
+
+        exercises_by_id = {ex.exerciseId: ex for ex in exercise_repository.get_all()}
+
+        result: list[Routine] = []
+        for routine in routines:
+            is_eyes = all(
+                exercises_by_id.get(s.exerciseId, None) is not None
+                and exercises_by_id[s.exerciseId].type == ExerciseType.EYES
+                for s in routine.steps
+            )
+            if is_eyes:
+                reason = _build_fallback_reason(routine.steps, exercises_by_id)
+            else:
+                reason = self._generate_reason(routine.steps, survey, exercises_by_id)
+            result.append(
+                Routine(
+                    routineOrder=routine.routineOrder,
+                    reason=reason,
+                    steps=routine.steps,
+                )
+            )
+        return result
 
     def _generate_reason(
         self,

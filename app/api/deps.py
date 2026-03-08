@@ -21,6 +21,12 @@
   [1] LLM / Recommend  — LLM 클라이언트, 추천 서비스, 응답 빌더
   [2] Task / Async     — TaskStore, CallbackClient, ColdStartChecker, TaskService, TaskExecutor
   [3] Vector / Embed   — ExerciseVectorService, UserActivityVectorService
+
+라우팅 정책:
+  POST /api/v2/routines는 Qdrant 연결 여부에 따라 경로가 결정된다.
+    - Qdrant 연결 성공: VectorSearch 경로 (submit_vectorsearch)
+    - Qdrant 미연결   : LLM 경로 (submit) — graceful fallback
+  is_qdrant_available()이 이 분기 판단을 엔드포인트에 노출한다.
 """
 
 import logging
@@ -138,10 +144,11 @@ def get_response_builder_v2() -> V2ResponseBuilder:
 #   _callback_client   : coreBE 콜백 전송 HTTP 클라이언트
 #   _qdrant_available  : 기동 시 1회 연결 확인 — 모든 Qdrant 관련 팩토리가 공유
 #   _cold_start_checker: ActivityBasedColdStartChecker | DefaultColdStartChecker
-#   get_task_store()   : TaskStore DI — 교체 지점
+#   get_task_store()        : TaskStore DI — 교체 지점
 #   get_cold_start_checker(): ColdStartChecker DI — 교체 지점
-#   get_task_service() : per-request — store + checker + [1] 팩토리 조합
-#   get_task_executor(): per-request — FastAPI BackgroundTasks 래핑 (TODO: Celery)
+#   is_qdrant_available()   : 엔드포인트 라우팅 분기용 — _qdrant_available 노출
+#   get_task_service()      : per-request — store + checker + [1] + [3] 팩토리 조합 (통합)
+#   get_task_executor()     : per-request — FastAPI BackgroundTasks 래핑 (TODO: Celery)
 # ==============================================================================
 
 
@@ -228,21 +235,41 @@ def get_cold_start_checker() -> ColdStartChecker:
     return _cold_start_checker
 
 
+def is_qdrant_available() -> bool:
+    """[Group A] Qdrant 연결 가능 여부 — Depends(is_qdrant_available) 사용.
+
+    POST /api/v2/routines 엔드포인트가 추천 경로를 선택하는 데 사용한다.
+    Fallback 정책 (우선순위):
+      1. Qdrant 연결 성공 → VectorSearch 경로
+      2. Qdrant 미연결   → LLM 경로 (graceful fallback)
+      3. LLM 오류       → Rule-based 경로 (RecommendService 내부 처리)
+    프로세스 기동 시 1회 확인한 _qdrant_available 플래그를 반환.
+    의존: _qdrant_available (싱글턴)
+    """
+    return _qdrant_available
+
+
 def get_task_service(
     store: TaskStore = Depends(get_task_store),
     checker: ColdStartChecker = Depends(get_cold_start_checker),
 ) -> TaskService:
     """[Group B] TaskService 생성 — Depends(get_task_service) 사용.
 
+    Qdrant 연결 여부와 무관하게 _vector_recommend_svc를 항상 주입한다.
+    엔드포인트가 is_qdrant_available()로 분기하여 실행 경로를 결정한다:
+      - True  → executor.submit_vectorsearch() → run_vectorbased_recommendation()
+      - False → executor.submit()              → run_recommendation() (LLM → Rule-based)
+
     per-request인 이유:
       내부적으로 get_recommend_service_v2() / get_response_builder_v2()를 호출하여
       최신 exercise 데이터가 반영된 RecommendService, V2ResponseBuilder를 주입.
 
     의존:
-      store   ← get_task_store()  (싱글턴 참조)
-      checker ← get_cold_start_checker()  (싱글턴 참조)
-      _callback_client  (싱글턴 참조)
-      get_recommend_service_v2()  (per-request)
+      store                ← get_task_store()  (싱글턴 참조)
+      checker              ← get_cold_start_checker()  (싱글턴 참조)
+      _callback_client      (싱글턴 참조)
+      _vector_recommend_svc (싱글턴 참조)
+      get_recommend_service_v2()  (per-request, LLM fallback용)
       get_response_builder_v2()   (per-request)
     """
     return TaskService(
@@ -251,6 +278,7 @@ def get_task_service(
         response_builder=get_response_builder_v2(),
         callback_client=_callback_client,
         cold_start_checker=checker,
+        vector_recommend_service=_vector_recommend_svc,
     )
 
 
@@ -441,44 +469,4 @@ def get_vector_recommend_service() -> VectorRecommendService:
     return _vector_recommend_svc
 
 
-def get_task_service_vectorsearch(
-    store: TaskStore = Depends(get_task_store),
-    checker: ColdStartChecker = Depends(get_cold_start_checker),
-) -> TaskService:
-    """[Group B] 벡터 검색용 TaskService 생성 — Depends(get_task_service_vectorsearch) 사용.
 
-    _vector_recommend_svc 싱글턴을 TaskService에 주입합니다.
-    Qdrant 미연결 시 비활성화 인스턴스가 주입되며,
-    run_vectorbased_recommendation() 실행 시 ConfigurationError → FAILED 처리됩니다.
-
-    의존:
-      store                ← get_task_store()  (싱글턴)
-      checker              ← get_cold_start_checker()  (싱글턴)
-      _callback_client     (싱글턴)
-      _vector_recommend_svc (싱글턴)
-      get_recommend_service_v2()   (per-request, fallback용)
-      get_response_builder_v2()    (per-request)
-    """
-    return TaskService(
-        store=store,
-        recommend_service=get_recommend_service_v2(),
-        response_builder=get_response_builder_v2(),
-        callback_client=_callback_client,
-        cold_start_checker=checker,
-        vector_recommend_service=_vector_recommend_svc,
-    )
-
-
-def get_task_executor_vectorsearch(
-    background_tasks: BackgroundTasks,
-    task_service: TaskService = Depends(get_task_service_vectorsearch),
-) -> TaskExecutor:
-    """[Group B] 벡터 검색용 TaskExecutor 생성 — Depends(get_task_executor_vectorsearch) 사용.
-
-    submit_vectorsearch()를 호출하는 엔드포인트에서 사용합니다.
-
-    의존:
-      background_tasks ← FastAPI per-request 자동 주입
-      task_service     ← get_task_service_vectorsearch() (per-request)
-    """
-    return BackgroundTaskExecutor(background_tasks, task_service)

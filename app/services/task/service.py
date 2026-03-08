@@ -10,6 +10,7 @@ import logging
 from datetime import UTC, datetime
 
 from app.core.exceptions import AppError
+from app.data.qdrant_exceptions import QdrantError
 from app.schemas.common import TaskStatus
 from app.schemas.v2.request import UserInputV2
 from app.schemas.v2.response import (
@@ -266,6 +267,15 @@ class TaskService:
 
             # Step 5: 콜백 전송 (성공)
             self._send_callback(result)
+
+        except QdrantError as e:
+            logger.warning(
+                "Qdrant 오류 감지 — LLM 경로로 fallback [task_id=%s, user_id=%d]: %s",
+                task_id,
+                user_id,
+                e,
+            )
+            self.run_recommendation(task_id)
 
         except AppError as e:
             self._handle_failure(task_id, str(e), user_id=user_id)

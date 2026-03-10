@@ -5,8 +5,8 @@
 ExerciseVectorService
   - try_upsert_all(exercises) → UpsertResult
     - passage 생성 → 임베딩 → PointStruct 구성 → repository.upsert_all()
-    - Qdrant 미연결 / embedding_model 미설정 시 UpsertResult(upserted=0) 반환 (silent skip)
-    - 예외 발생 시 에러 타입 포함 UpsertResult 반환 (기존 API 영향 없음)
+    - Qdrant 미연결 / embedding_model 미설정 시 UpsertResult(error_type=CONNECTION) 반환
+    - 예외 발생 시 에러 타입 포함 UpsertResult 반환
 """
 
 from __future__ import annotations
@@ -59,8 +59,8 @@ class ExerciseVectorService:
     2. embedding_model: SentenceTransformer
     3. try_upsert_all
 
-    - embedding_model 또는 repository 가 None 이면 debug 로그 후 UpsertResult(upserted=0) 반환
-    - upsert 도중 예외 발생 시 에러 타입 포함 UpsertResult 반환 (기존 API 흐름 영향 없음)
+    - embedding_model 또는 repository 가 None 이면 CONNECTION error UpsertResult 반환
+    - upsert 도중 예외 발생 시 에러 타입 포함 UpsertResult 반환
     """
 
     def __init__(
@@ -77,17 +77,25 @@ class ExerciseVectorService:
         """
         운동 목록 전체를 벡터DB에 upsert 합니다.
 
-        - Qdrant 미연결 / 모델 미설정 시: DEBUG 로그 후 UpsertResult(upserted=0) 반환
+        - Qdrant 미연결 / 모델 미설정 시: CONNECTION error UpsertResult 반환
         - 실행 중 예외 발생 시: 에러 타입 포함 UpsertResult 반환
         - 기존 운동 데이터(exercises.json) 로드 흐름과 완전히 독립적으로 동작
         """
         if self._repository is None or self._embedding_model is None:
-            logger.debug(
-                "ExerciseVectorService: repository=%s, embedding_model=%s — 벡터 upsert 건너뜀",
-                "설정됨" if self._repository else "미설정",
-                "설정됨" if self._embedding_model else "미설정",
+            missing = ", ".join(
+                label
+                for flag, label in [
+                    (self._repository is None, "Qdrant 미연결"),
+                    (self._embedding_model is None, "임베딩 모델 미설정"),
+                ]
+                if flag
             )
-            return UpsertResult(upserted=0)
+            logger.warning("ExerciseVectorService: %s — 벡터 upsert 불가", missing)
+            return UpsertResult(
+                upserted=0,
+                error_type=UpsertErrorType.CONNECTION,
+                error_message=missing,
+            )
 
         try:
             points = self._build_points(exercises)

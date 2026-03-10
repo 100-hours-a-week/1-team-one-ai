@@ -49,6 +49,10 @@ class TaskExecutor(Protocol):
         """task_id에 해당하는 벡터 검색 추천 작업을 백그라운드 큐에 제출"""
         ...
 
+    def submit_cf(self, task_id: str) -> None:
+        """task_id에 해당하는 협업 필터링 추천 작업을 백그라운드 큐에 제출"""
+        ...
+
 
 class BackgroundTaskExecutor:
     """
@@ -81,3 +85,9 @@ class BackgroundTaskExecutor:
             self._task_service.run_vectorbased_recommendation, task_id
         )
         logger.debug("백그라운드 태스크 제출 (벡터 검색): %s", task_id)
+
+    def submit_cf(self, task_id: str) -> None:
+        self._background_tasks.add_task(
+            self._task_service.run_collab_recommendation, task_id
+        )
+        logger.debug("백그라운드 태스크 제출 (CF 혼합): %s", task_id)

@@ -12,7 +12,7 @@ import logging
 import httpx
 
 from app.core.config import CallbackPolicy, settings
-from app.schemas.v2.response import TaskResult
+from app.schemas.task import TaskResult
 
 logger = logging.getLogger(__name__)
 

@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 
 from app.domain.routine import Routine, RoutineList
 from app.schemas.common import RecommendationSummary, TaskStatus, UserSurvey
-from app.schemas.v2.response import (
+from app.schemas.task import (
     PROGRESS_STEP_PERCENTAGE,
     ProgressStep,
     TaskResult,

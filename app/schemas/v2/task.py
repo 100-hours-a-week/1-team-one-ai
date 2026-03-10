@@ -10,8 +10,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from app.schemas.common import TaskStatus
-from app.schemas.v2.request import UserInputV2
-from app.schemas.v2.response import TaskResult
+from app.schemas.task import TaskResult, UserInput
 
 
 class TaskData(BaseModel):
@@ -27,7 +26,7 @@ class TaskData(BaseModel):
     current_step: str = "추천 요청 접수됨"
 
     # 요청 데이터 (백그라운드에서 사용)
-    request_data: UserInputV2
+    request_data: UserInput
 
     # 결과 (완료 시)
     result: Optional[TaskResult] = None

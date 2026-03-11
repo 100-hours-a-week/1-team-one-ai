@@ -50,11 +50,9 @@ class InMemoryTaskStore:
     def save(self, task: TaskData) -> None:
         with self._lock:
             if task.task_id in self._store:
-                raise TaskConflictError(
-                    f"Task already exists: {task.task_id}"
-                )
+                raise TaskConflictError(f"Task already exists: {task.task_id}")
             self._store[task.task_id] = task
-            logger.debug("Task 저장: %s", task.task_id)
+            logger.debug("Task 저장됨: %s", task.task_id)
 
     def get(self, task_id: str) -> TaskData | None:
         with self._lock:
@@ -70,4 +68,3 @@ class InMemoryTaskStore:
 
             updated = task.model_copy(update=fields)
             self._store[task_id] = updated
-            logger.debug("Task 업데이트: %s, fields=%s", task_id, list(fields.keys()))

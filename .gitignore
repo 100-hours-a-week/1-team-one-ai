@@ -10,9 +10,13 @@ __pycache__/
 .env.stage
 
 logs/
-app/api/v3/
 examples/
 scripts/
 tests/pilot/
 CLAUDE.md
-app/data/exercises.json
+
+app/data/eye_only.json
+app/data/eye_routine.json
+
+v2(1).png
+v2(2).png

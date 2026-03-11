@@ -1648,149 +1648,149 @@
     "tags": "허리 불편함,요추 통증,장시간 앉아있음,반복 작업,중저강도,회복용"
   },
   {
-    "exerciseId": 64,
-    "type": "EYES",
+    "id": 64,
     "name": "눈 근육 스트레칭",
     "content": "화면에서 안내하는 방향으로 시선을 이동하거나 눈을 감은 상태를 일정 시간 유지하여 눈 주변 근육의 긴장을 풀어줍니다.",
     "effect": "눈 주변 근육의 긴장을 완화하고 눈의 피로감 및 시각적 불편함 감소에 도움",
+    "type": "EYES",
     "pose": {
       "keyFrames": [
         {
+          "x": 0.9,
+          "y": 0.5,
           "phase": "follow1",
-          "x": 0.9,
-          "y": 0.5,
           "holdMs": 900
         },
         {
+          "x": 0.5,
+          "y": 0.5,
           "phase": "follow2",
-          "x": 0.5,
-          "y": 0.5,
           "holdMs": 900
         },
         {
+          "x": 0.1,
+          "y": 0.5,
           "phase": "follow3",
-          "x": 0.1,
-          "y": 0.5,
           "holdMs": 900
         },
         {
+          "x": 0.1,
+          "y": 0.1,
           "phase": "follow4",
-          "x": 0.1,
-          "y": 0.1,
           "holdMs": 1200
         },
         {
+          "x": 0.5,
+          "y": 0.1,
           "phase": "follow5",
-          "x": 0.5,
-          "y": 0.1,
           "holdMs": 900
         },
         {
+          "x": 0.9,
+          "y": 0.1,
           "phase": "follow6",
-          "x": 0.9,
-          "y": 0.1,
           "holdMs": 900
         },
         {
+          "x": 0.9,
+          "y": 0.5,
           "phase": "follow7",
-          "x": 0.9,
-          "y": 0.5,
           "holdMs": 1200
         },
         {
+          "x": 0.9,
+          "y": 0.9,
           "phase": "follow8",
-          "x": 0.9,
-          "y": 0.9,
           "holdMs": 1200
         },
         {
+          "x": 0.5,
+          "y": 0.9,
           "phase": "follow9",
-          "x": 0.5,
-          "y": 0.9,
           "holdMs": 900
         },
         {
+          "x": 0.1,
+          "y": 0.9,
           "phase": "follow10",
-          "x": 0.1,
-          "y": 0.9,
           "holdMs": 900
         },
         {
+          "x": 0.1,
+          "y": 0.5,
           "phase": "follow11",
-          "x": 0.1,
-          "y": 0.5,
           "holdMs": 1200
         },
         {
+          "x": 0.1,
+          "y": 0.1,
           "phase": "follow12",
-          "x": 0.1,
-          "y": 0.1,
           "holdMs": 1200
         },
         {
+          "x": 0.5,
+          "y": 0.5,
           "phase": "follow13",
-          "x": 0.5,
-          "y": 0.5,
           "holdMs": 1200
         },
         {
-          "phase": "follow14",
           "x": 0.9,
           "y": 0.9,
+          "phase": "follow14",
           "holdMs": 1200
         },
         {
-          "phase": "follow15",
           "x": 0.5,
           "y": 0.9,
+          "phase": "follow15",
           "holdMs": 900
         },
         {
-          "phase": "follow16",
           "x": 0.1,
           "y": 0.9,
+          "phase": "follow16",
           "holdMs": 900
         },
         {
-          "phase": "follow17",
           "x": 0.5,
           "y": 0.5,
+          "phase": "follow17",
           "holdMs": 1200
         },
         {
-          "phase": "follow18",
           "x": 0.9,
           "y": 0.1,
+          "phase": "follow18",
           "holdMs": 1200
         },
         {
-          "phase": "hold1",
           "x": 1.0,
           "y": 0.5,
+          "phase": "hold1",
           "holdMs": 10000
         },
         {
-          "phase": "hold2",
           "x": 0.0,
           "y": 0.5,
+          "phase": "hold2",
           "holdMs": 10000
         },
         {
-          "phase": "hold3",
           "x": 0.5,
           "y": 0.0,
+          "phase": "hold3",
           "holdMs": 10000
         },
         {
-          "phase": "hold4",
           "x": 0.5,
           "y": 1.0,
+          "phase": "hold4",
           "holdMs": 10000
         },
         {
-          "phase": "close1",
           "x": 0.5,
           "y": 0.5,
+          "phase": "close1",
           "holdMs": 10000
         }
       ],

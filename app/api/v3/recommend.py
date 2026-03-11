@@ -1,6 +1,6 @@
-# app/api/v2/recommend.py
+# app/api/v3/recommend.py
 """
-추천 API (v2) — router + endpoints only
+추천 API (v3)
 
 DI 배선은 app/api/deps.py 참조.
 구현체 교체 지점 (deps.py의 함수만 수정):
@@ -9,11 +9,13 @@ DI 배선은 app/api/deps.py 참조.
   - ColdStartChecker : get_cold_start_checker() → DefaultColdStartChecker / ActivityBasedColdStartChecker
 
 추천 경로 (POST /routines):
-  1. Qdrant 연결 성공 → VectorSearch 경로 (submit_vectorsearch)
+  1. Qdrant 연결 성공 → CF 혼합 경로 (submit_cf)
+       - 만족도 데이터 있음: CF 점수 + 벡터 점수 블렌딩
+       - 만족도 데이터 없음: 벡터 검색만으로 graceful fallback
   2. Qdrant 미연결   → LLM 경로 (submit) — graceful fallback
   3. LLM 오류       → Rule-based 경로 (RecommendService 내부 처리)
 
-- POST /routines           : 추천 요청 접수 (Qdrant 연결 시 Vector, 미연결 시 LLM)
+- POST /routines           : 추천 요청 접수 (Qdrant 연결 시 CF 혼합, 미연결 시 LLM)
 - GET  /routines/{task_id} : 추천 상태 조회 (폴링)
 """
 
@@ -27,8 +29,8 @@ from app.api.deps import (
     is_qdrant_available,
 )
 from app.core.exceptions import AppError
-from app.schemas.v2.request import UserInputV2
-from app.schemas.v2.response import TaskAcceptedResponse, TaskResult
+from app.schemas.v3.request import UserInputV3
+from app.schemas.v3.response import TaskAcceptedResponse, TaskResult
 from app.services.task.executor import TaskExecutor
 from app.services.task.service import TaskService
 
@@ -43,16 +45,16 @@ router = APIRouter()
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def create_recommendation(
-    user_input: UserInputV2,
+    user_input: UserInputV3,
     task_service: TaskService = Depends(get_task_service),
     executor: TaskExecutor = Depends(get_task_executor),
     use_vector: bool = Depends(is_qdrant_available),
 ) -> TaskAcceptedResponse:
     """
-    운동 루틴 추천 요청 접수 (V2: 비동기)
+    운동 루틴 추천 요청 접수 (V3: 비동기)
 
     Qdrant 연결 여부에 따라 추천 경로를 자동 선택한다.
-      1. Qdrant 연결 성공 → VectorSearch 경로
+      1. Qdrant 연결 성공 → CF 혼합 경로 (벡터 + 협업 필터링)
       2. Qdrant 미연결   → LLM 경로 (graceful fallback)
       3. LLM 오류       → Rule-based 경로 (RecommendService 내부 처리)
 
@@ -67,17 +69,17 @@ async def create_recommendation(
     - use_vector: Qdrant 연결 여부 (DI) → deps.is_qdrant_available
     """
     logger.info(
-        "V2 추천 요청 수신: taskId=%s, userId=%d, routineCount=%d, path=%s",
+        "V3 추천 요청 수신: taskId=%s, userId=%d, routineCount=%d, path=%s",
         user_input.taskId,
         user_input.userId,
         user_input.surveyData.routineCount,
-        "vector" if use_vector else "llm",
+        "cf" if use_vector else "llm",
     )
 
     try:
         task = task_service.create_task(user_input)
         if use_vector:
-            executor.submit_vectorsearch(task.task_id)
+            executor.submit_cf(task.task_id)
         else:
             executor.submit(task.task_id)
     except AppError:

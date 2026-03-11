@@ -97,7 +97,7 @@ class InMemoryTaskStore:
                 del self._store[task_id]
 
         if expired:
-            logger.info("만료된 태스크 %d건 삭제됨: %s", len(expired), expired)
+            logger.debug("만료된 태스크 %d건 삭제됨: %s", len(expired), expired)
 
     def save(self, task: TaskData) -> None:
         with self._lock:

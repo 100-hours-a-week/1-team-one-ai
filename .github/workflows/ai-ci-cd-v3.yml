@@ -1,0 +1,274 @@
+name: AI CI/CD v3 (k8s GitOps)
+
+# ============================================================
+# [v3 변경사항 요약]
+# v2: EC2 기반 Docker Compose 배포 (SSM + ASG Instance Refresh)
+# v3: Kubernetes 기반 GitOps 배포 (ArgoCD + Helm)
+#
+# [배포 흐름]
+# PR Open/Sync → 빌드 + ECR 푸시 (pr-{SHA} 태그)
+# PR Merge (develop) → dev-latest 태그
+#                      → 클라우드 레포 helm/envs/dev/ai-values.yaml image.tag 업데이트
+#                      → ArgoCD 감지 → dev-app 네임스페이스 파드 롤링 업데이트
+# PR Merge (main)    → production-latest 태그
+#                      → 클라우드 레포 helm/envs/prod/ai-values.yaml image.tag 업데이트
+#                      → ArgoCD 감지 → prod-app 네임스페이스 파드 롤링 업데이트
+#
+# [태그 전략]
+# pr-{SHA}   : CI 빌드 결과 (임시)
+# dev-{SHA}  : develop Merge 후 (dev-app용)
+# prod-{SHA} : main Merge 후 (prod-app용)
+# → SHA가 매번 달라지므로 values.yaml Git diff 발생 → ArgoCD sync 트리거
+# → 환경별 태그 분리로 dev/prod 이미지 구분
+# → 롤백: values.yaml을 이전 SHA로 git revert → ArgoCD 자동 sync
+#
+# [역할 분리]
+# GitHub Actions = CI + 클라우드 레포 image.tag 업데이트 (CD 트리거)
+# ArgoCD         = 실제 클러스터 배포 (CD 실행) + 완료/실패 Discord 알림
+# ============================================================
+
+on:
+  pull_request:
+    types: [opened, synchronize, closed]
+    branches: [develop, main] # AI 레포는 dev 대신 develop 브랜치 사용
+
+permissions:
+  id-token: write # AWS OIDC 인증 (ECR 푸시용)
+  contents: write
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: ai
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # JOB 1. CI - 빌드 및 ECR 이미지 푸시
+  # 결과: ECR에 pr-{HEAD_SHA} 태그로 이미지 저장
+  build-and-push:
+    if: github.event.action == 'opened' || github.event.action == 'synchronize'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # AWS OIDC 인증 (ECR 접근용)
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # PR 단위 이미지 빌드 및 푸시
+      # 태그: pr-{HEAD_SHA} → Merge 시 promote-image job에서 환경별 태그로 교체됨
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:pr-$PR_HEAD_SHA .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:pr-$PR_HEAD_SHA
+
+      - name: Get Current Time
+        if: always()
+        uses: 1466587594/get-current-time@v2
+        id: current-time
+        with:
+          format: 'YYYY-MM-DD HH:mm:ss'
+          utcOffset: "+09:00"
+          timezone: 'Asia/Seoul'
+
+      - name: Discord Notification - CI 성공
+        if: success()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_EMBEDS: |
+            [{
+              "title": "✅ AI CI 성공",
+              "color": 5763719,
+              "fields": [
+                {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
+                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
+                {"name": "Triggered By", "value": "${{ github.actor }}", "inline": false},
+                {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
+                {"name": "Actions Log", "value": "[Link to Action](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "${{ steps.current-time.outputs.formattedTime }} KST"
+              }
+            }]
+        uses: Ilshidur/action-discord@0.4.0
+        with:
+          args: 'v3 CI 완료 - ECR 이미지 푸시 성공 <@&${{ secrets.DISCORD_ROLE_AI }}>'
+
+      - name: Discord Notification - CI 실패
+        if: failure()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_EMBEDS: |
+            [{
+              "title": "🚨 AI CI 실패",
+              "color": 15548997,
+              "fields": [
+                {"name": "Repository", "value": "${{ github.repository }}", "inline": false},
+                {"name": "Merge To", "value": "${{ github.base_ref }}", "inline": false},
+                {"name": "Triggered By", "value": "${{ github.actor }}", "inline": false},
+                {"name": "Commit/PR", "value": "${{ github.event.pull_request.title }}", "inline": false},
+                {"name": "Actions Log", "value": "[Link to Action](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true}
+              ],
+              "footer": {
+                "text": "${{ steps.current-time.outputs.formattedTime }} KST"
+              }
+            }]
+        uses: Ilshidur/action-discord@0.4.0
+        with:
+          args: 'v3 CI 실패 - 로그를 확인해주세요 <@&${{ secrets.DISCORD_ROLE_AI_ONCALL }}>'
+
+  # JOB 2. 이미지 리태깅 (Promote)
+  # 역할: pr-{SHA} 임시 태그 → 환경별 고정 태그로 교체
+  #   develop 브랜치 Merge → dev-latest         (dev-app 네임스페이스용)
+  #   main 브랜치 Merge    → production-latest  (prod-app 네임스페이스용)
+  # SHA 태그를 사용하는 이유:
+  #   values.yaml에 SHA가 기록되므로 매 배포마다 Git diff 발생
+  #   → ArgoCD sync 트리거 보장
+  #   → 롤백 시 이전 SHA로 git revert만 하면 됨
+  promote-image:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      # 이후 deploy job에서 사용할 최종 태그
+      final_image_tag: ${{ steps.retag.outputs.FINAL_TAG }}
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Retag Image
+        id: retag
+        env:
+          # ECR_REGISTRY 불필요: v2는 deploy job에 이미지 풀 URI 전체를 넘겨야 했지만
+          # v3는 태그명(dev-latest/production-latest)만 values.yaml에 기록하면 됨
+          # 실제 이미지 풀은 k8s가 ECR credential provider로 처리
+          SOURCE_TAG: pr-${{ github.event.pull_request.head.sha }}
+          BASE_BRANCH: ${{ github.base_ref }}
+        run: |
+          echo "Source tag: $SOURCE_TAG"
+
+          # CI에서 빌드한 pr-{SHA} 이미지 매니페스트 조회
+          MANIFEST=$(aws ecr batch-get-image \
+            --repository-name $ECR_REPOSITORY \
+            --image-ids imageTag=$SOURCE_TAG \
+            --query 'images[].imageManifest' \
+            --output text)
+
+          if [ -z "$MANIFEST" ] || [ "$MANIFEST" == "None" ]; then
+            echo "Error: Source image ($SOURCE_TAG) not found in ECR!"
+            exit 1
+          fi
+
+          # 브랜치에 따라 환경별 태그 결정
+          # develop → dev-latest        : helm/envs/dev/ai-values.yaml 에서 참조
+          # main    → production-latest : helm/envs/prod/ai-values.yaml 에서 참조
+          if [[ "$BASE_BRANCH" == "develop" ]]; then
+            FINAL_TAG="dev-${{ github.event.pull_request.head.sha }}"
+          elif [[ "$BASE_BRANCH" == "main" ]]; then
+            FINAL_TAG="prod-${{ github.event.pull_request.head.sha }}"
+          fi
+
+          echo "Retagging $SOURCE_TAG → $FINAL_TAG"
+          aws ecr put-image \
+            --repository-name $ECR_REPOSITORY \
+            --image-tag $FINAL_TAG \
+            --image-manifest "$MANIFEST" || echo "Tag already exists on this digest. Skipping."
+
+          echo "FINAL_TAG=$FINAL_TAG" >> $GITHUB_OUTPUT
+
+  # JOB 3. Dev 환경 배포 (GitOps)
+  # 역할: 클라우드 레포 helm/envs/dev/ai-values.yaml의
+  #       image.tag를 dev-latest로 업데이트 후 git push
+  # 이후: ArgoCD가 변경 감지 → dev-app 네임스페이스 파드 롤링 업데이트
+  # 알림: ArgoCD Notifications에서 Sync 완료/실패 시 Discord 발송
+  deploy-dev:
+    needs: promote-image
+    if: github.event.pull_request.merged == true && github.base_ref == 'develop'
+    runs-on: ubuntu-latest
+    steps:
+      # CLOUD_REPO_PAT: Classic PAT (repo 스코프)
+      # 1-team-one-cloud 레포 push 권한 필요
+      - name: Checkout Cloud Repo
+        uses: actions/checkout@v4
+        with:
+          repository: 100-hours-a-week/1-team-one-cloud
+          token: ${{ secrets.CLOUD_REPO_PAT }}
+          ref: dev
+
+      # sed로 tag 값만 교체
+      # 변경 전: tag: "이전 dev-{SHA}"
+      # 변경 후: tag: "dev-{새SHA}"
+      - name: Update dev AI image tag
+        run: |
+          sed -i "s/tag: .*/tag: \"${{ needs.promote-image.outputs.final_image_tag }}\"/" helm/envs/dev/ai-values.yaml
+          echo "=== 변경된 values 확인 ==="
+          grep "tag:" helm/envs/dev/ai-values.yaml
+
+      # [skip ci]: 클라우드 레포 자체 CI 불필요한 트리거 방지
+      - name: Commit and Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add helm/envs/dev/ai-values.yaml
+          git commit -m "cd: update dev ai image tag to ${{ needs.promote-image.outputs.final_image_tag }} [skip ci]
+
+          PR: #${{ github.event.pull_request.number }} - ${{ github.event.pull_request.title }}
+          Actor: ${{ github.actor }}"
+          git push origin dev
+
+  # JOB 4. Production 환경 배포 (GitOps)
+  # 역할: 클라우드 레포 helm/envs/prod/ai-values.yaml의
+  #       image.tag를 production-latest로 업데이트 후 git push
+  # 이후: ArgoCD가 변경 감지 → prod-app 네임스페이스 파드 롤링 업데이트
+  # 알림: ArgoCD Notifications에서 Sync 완료/실패 시 Discord 발송
+  deploy-production:
+    needs: promote-image
+    if: github.event.pull_request.merged == true && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    # GitHub Environment 승인 게이트
+    # Settings → Environments → production → Required reviewers 설정
+    environment: production
+    steps:
+      - name: Checkout Cloud Repo
+        uses: actions/checkout@v4
+        with:
+          repository: 100-hours-a-week/1-team-one-cloud
+          token: ${{ secrets.CLOUD_REPO_PAT }}
+          ref: dev
+
+      - name: Update prod AI image tag
+        run: |
+          sed -i "s/tag: .*/tag: \"${{ needs.promote-image.outputs.final_image_tag }}\"/" helm/envs/prod/ai-values.yaml
+          echo "=== 변경된 values 확인 ==="
+          grep "tag:" helm/envs/prod/ai-values.yaml
+
+      - name: Commit and Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add helm/envs/prod/ai-values.yaml
+          git commit -m "cd: update prod ai image tag to ${{ needs.promote-image.outputs.final_image_tag }} [skip ci]
+
+          PR: #${{ github.event.pull_request.number }} - ${{ github.event.pull_request.title }}
+          Actor: ${{ github.actor }}"
+          git push origin dev

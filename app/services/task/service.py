@@ -12,14 +12,15 @@ from datetime import UTC, datetime
 from app.core.exceptions import AppError
 from app.data.qdrant_exceptions import QdrantError
 from app.schemas.common import TaskStatus
-from app.schemas.v2.request import UserInputV2
-from app.schemas.v2.response import (
+from app.schemas.task import (
     PROGRESS_STEP_PERCENTAGE,
     ProgressStep,
     TaskResult,
+    UserInput,
 )
 from app.schemas.v2.task import TaskData
 from app.services.callback_client import CallbackClient
+from app.services.recommend.cf_recommend_service import CFRecommendService
 from app.services.recommend.cold_start_checker import ColdStartChecker
 from app.services.recommend.recommend_service import RecommendService
 from app.services.recommend.vector_recommend_service import VectorRecommendService
@@ -43,6 +44,7 @@ class TaskService:
 
     - run_recommendation: LLM 기반 백그라운드 추천 처리 + 콜백 전송
     - run_vectorbased_recommendation: 벡터 검색 기반 백그라운드 추천 처리 + 콜백 전송
+    - run_collab_recommendation: 협업 필터링 + 벡터 검색 기반 추천 처리 + 콜백 전송 (V3)
     """
 
     def __init__(
@@ -53,6 +55,7 @@ class TaskService:
         callback_client: CallbackClient,
         cold_start_checker: ColdStartChecker,
         vector_recommend_service: VectorRecommendService | None = None,
+        cf_recommend_service: CFRecommendService | None = None,
     ) -> None:
         self._store = store
         self._recommend_service = recommend_service
@@ -60,8 +63,9 @@ class TaskService:
         self._callback_client = callback_client
         self._cold_start_checker = cold_start_checker
         self._vector_recommend_service = vector_recommend_service
+        self._cf_recommend_service = cf_recommend_service
 
-    def create_task(self, user_input: UserInputV2) -> TaskData:
+    def create_task(self, user_input: UserInput) -> TaskData:
         """
         Task 생성 및 store에 저장 (상태: IN_PROGRESS)
 
@@ -290,6 +294,112 @@ class TaskService:
         except Exception as e:
             logger.exception(
                 "벡터 검색 추천 예상치 못한 오류 [task_id=%s, user_id=%d]", task_id, user_id
+            )
+            self._handle_failure(task_id, f"unexpected error: {e}", user_id=user_id)
+
+    def run_collab_recommendation(self, task_id: str) -> None:
+        """
+        백그라운드에서 실행되는 협업 필터링 + 벡터 검색 혼합 추천 처리 로직 (V3)
+
+        1. 설문 → 쿼리 임베딩 + 사용자 만족도 기반 유사 사용자 검색
+            CFRecommendService.recommend_routines() 내부 흐름:
+            1. _build_query(survey) → query string
+            2. embedding_model.encode(query) → survey vector (+ 활동 벡터 블렌딩)
+            3. exercise_repo.search(vector) → 벡터 유사도 점수
+            4. satisfaction_repo.get_user_satisfaction(user_id) → 사용자 만족도
+            5. satisfaction_repo.search_similar_users(ratings) → 유사 사용자
+            6. _blend_and_rank(vector_scores, cf_scores) → 최종 운동 순위
+            7. _build_routine_list(ranked_hits) → RoutineList
+
+        2. 결과 검증 + 보정 (V2ResponseBuilder → TaskResult)
+        3. LLM reason 생성 (검증 & 보정 완료된 최종 steps 기반)
+        4. Task 상태 업데이트
+        5. coreBE 콜백 전송
+
+        만족도 데이터 없음 / 유사 사용자 없음 → 벡터 검색만으로 graceful fallback.
+        Qdrant 오류 → LLM 경로로 fallback.
+        실패 시에도 콜백을 전송합니다.
+        """
+        from app.core.exceptions import ConfigurationError
+
+        task = self._store.get(task_id)
+
+        if task is None:
+            logger.error("Task를 찾을 수 없음: %s", task_id)
+            return
+
+        survey = task.request_data.surveyData
+        user_id = task.user_id
+
+        try:
+            if self._cf_recommend_service is None:
+                raise ConfigurationError("CFRecommendService가 주입되지 않았습니다.")
+
+            logger.info(
+                "CF 혼합 추천 시작 [task_id=%s, user_id=%d]",
+                task_id,
+                user_id,
+            )
+
+            # Step 1: 설문 분석 + 쿼리 생성
+            self._update_progress(task_id, ProgressStep.HEALTH_SCORE)
+
+            # Step 2: 벡터 검색 + CF 점수 블렌딩
+            self._update_progress(task_id, ProgressStep.EXERCISE_SEARCH)
+            cf_output = self._cf_recommend_service.recommend_routines(
+                survey=survey, user_id=user_id
+            )
+
+            logger.debug(
+                "CF 혼합 추천 결과 [task_id=%s, user_id=%d]: routines=%d",
+                task_id,
+                user_id,
+                len(cf_output.routines),
+            )
+
+            # Step 3: 결과 검증 + 보정 (유효성 검증, bilateral rule, 시간 보정)
+            self._update_progress(task_id, ProgressStep.RESULT_VALIDATION)
+            result = self._response_builder.build(
+                cf_output, task_id=task_id, survey=survey, user_id=user_id
+            )
+
+            # Step 4: LLM reason 생성 (검증 & 보정 완료된 최종 steps 기반)
+            if result.routines:
+                self._update_progress(task_id, ProgressStep.REASON_GENERATION)
+                reasoned_routines = self._cf_recommend_service.generate_reasons(
+                    result.routines, survey
+                )
+                result = result.model_copy(update={"routines": reasoned_routines})
+
+            # Step 5: 완료 처리
+            self._store.update(
+                task_id,
+                status=TaskStatus.COMPLETED,
+                progress=PROGRESS_STEP_PERCENTAGE[ProgressStep.COMPLETED],
+                current_step=ProgressStep.COMPLETED.value,
+                result=result,
+                completed_at=result.completedAt,
+            )
+            logger.info("CF 혼합 추천 완료 [task_id=%s, user_id=%d]", task_id, user_id)
+
+            # Step 6: 콜백 전송 (성공)
+            self._send_callback(result)
+
+        except QdrantError as e:
+            logger.warning(
+                "Qdrant 오류 감지 — LLM 경로로 fallback [task_id=%s, user_id=%d]: %s",
+                task_id,
+                user_id,
+                e,
+            )
+            self.run_recommendation(task_id)
+
+        except AppError as e:
+            self._handle_failure(task_id, str(e), user_id=user_id)
+
+        except Exception as e:
+            logger.exception(
+                "CF 혼합 추천 예상치 못한 오류 [task_id=%s, user_id=%d]", task_id, user_id
             )
             self._handle_failure(task_id, f"unexpected error: {e}", user_id=user_id)
 

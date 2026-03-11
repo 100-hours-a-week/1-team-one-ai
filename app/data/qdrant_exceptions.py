@@ -52,6 +52,17 @@ class QdrantCollectionError(QdrantError):
     """컬렉션 없음 또는 스키마 불일치 (404)."""
 
 
+def upsert_error_to_http_status(error_type: UpsertErrorType) -> int:
+    """UpsertErrorType → HTTP 상태 코드 매핑.
+
+    - COLLECTION: 500 (컬렉션 미존재 = 서버 설정 오류)
+    - 나머지: 503 (Qdrant 서비스 불가)
+    """
+    if error_type == UpsertErrorType.COLLECTION:
+        return 500
+    return 503
+
+
 def translate_qdrant_error(e: Exception) -> QdrantError:
     """qdrant-client SDK 예외를 앱 예외 계층으로 변환.
 

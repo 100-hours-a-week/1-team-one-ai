@@ -40,6 +40,7 @@ from app.services.exercise_vector_service import ExerciseVectorService
 from app.services.llm_clients.base import LLMClient
 from app.services.llm_clients.ollama_client import OllamaClient
 from app.services.llm_clients.openai_client import OpenAIClient
+from app.services.recommend.cf_recommend_service import CFRecommendService
 from app.services.recommend.cold_start_checker import (
     ActivityBasedColdStartChecker,
     ColdStartChecker,
@@ -47,6 +48,7 @@ from app.services.recommend.cold_start_checker import (
 )
 from app.services.recommend.recommend_service import RecommendService
 from app.services.recommend.vector_recommend_service import VectorRecommendService
+from app.services.satisfaction_service import SatisfactionUpsertService
 from app.services.response.v1 import V1ResponseBuilder
 from app.services.response.v2 import V2ResponseBuilder
 from app.services.task.executor import BackgroundTaskExecutor, TaskExecutor
@@ -279,6 +281,7 @@ def get_task_service(
         callback_client=_callback_client,
         cold_start_checker=checker,
         vector_recommend_service=_vector_recommend_svc,
+        cf_recommend_service=_cf_recommend_svc,
     )
 
 
@@ -439,6 +442,88 @@ _user_activity_vec_svc: UserActivityVectorService = _create_user_activity_vector
 _vector_recommend_svc: VectorRecommendService = _create_vector_recommend_service()
 
 
+# ==============================================================================
+# [4] Collaborative Filtering
+#   _satisfaction_repo   : QdrantSatisfactionRepository (Qdrant 미연결 시 None)
+#   _cf_recommend_svc    : CFRecommendService (satisfaction_repo + exercise_repo + embedding)
+#   _satisfaction_svc    : SatisfactionUpsertService (satisfaction upsert, v3 data API용)
+#   get_satisfaction_upsert_service() : SatisfactionUpsertService DI
+# ==============================================================================
+
+
+def _create_satisfaction_repository():
+    """QdrantSatisfactionRepository 싱글턴 생성.
+
+    성공: QdrantSatisfactionRepository
+    실패: None (비활성화 모드)
+    """
+    if not _qdrant_available:
+        return None
+
+    try:
+        from app.data.qdrant_client import get_qdrant_client
+        from app.data.satisfaction_repository import QdrantSatisfactionRepository
+
+        client = get_qdrant_client()
+        logger.info("QdrantSatisfactionRepository 초기화 완료 [url=%s]", settings.QDRANT_URL)
+        return QdrantSatisfactionRepository(client)
+
+    except Exception as e:
+        logger.warning("QdrantSatisfactionRepository 초기화 실패: %s", e)
+        return None
+
+
+def _create_cf_recommend_service() -> CFRecommendService:
+    """CFRecommendService 싱글턴 생성.
+
+    satisfaction_repo=None → 만족도 데이터 없이 벡터 검색만으로 동작 (graceful fallback).
+    exercise_repo=None or embedding_model=None → recommend_routines() 시 ConfigurationError.
+    """
+    if not _qdrant_available:
+        return CFRecommendService(
+            satisfaction_repo=None,
+            exercise_repo=None,
+            embedding_model=None,
+            llm_client=_llm_client,
+            user_activity_repo=None,
+        )
+
+    try:
+        from app.data.exercise_vector_repository import QdrantExerciseVectorRepository
+        from app.data.qdrant_client import get_qdrant_client
+        from app.data.user_activity_repository import QdrantUserActivityVectorRepository
+
+        client = get_qdrant_client()
+        exercise_repo = QdrantExerciseVectorRepository(client)
+        user_activity_repo = QdrantUserActivityVectorRepository(client)
+        logger.info("CFRecommendService 초기화 완료 [url=%s]", settings.QDRANT_URL)
+        return CFRecommendService(
+            satisfaction_repo=_satisfaction_repo,
+            exercise_repo=exercise_repo,
+            embedding_model=_embedding_model,
+            llm_client=_llm_client,
+            user_activity_repo=user_activity_repo,
+        )
+
+    except Exception as e:
+        logger.warning("CFRecommendService 초기화 실패 — 비활성화: %s", e)
+        return CFRecommendService(
+            satisfaction_repo=None,
+            exercise_repo=None,
+            embedding_model=None,
+            llm_client=_llm_client,
+            user_activity_repo=None,
+        )
+
+
+# [Group A] CF 서비스 싱글턴
+_satisfaction_repo = _create_satisfaction_repository()
+_cf_recommend_svc: CFRecommendService = _create_cf_recommend_service()
+_satisfaction_upsert_svc: SatisfactionUpsertService = SatisfactionUpsertService(
+    repository=_satisfaction_repo
+)
+
+
 def get_exercise_vector_service() -> ExerciseVectorService:
     """[Group A] ExerciseVectorService 반환 — Depends(get_exercise_vector_service) 사용.
 
@@ -467,6 +552,25 @@ def get_vector_recommend_service() -> VectorRecommendService:
     의존: _vector_recommend_svc (싱글턴)
     """
     return _vector_recommend_svc
+
+
+def get_satisfaction_upsert_service() -> SatisfactionUpsertService:
+    """[Group A] SatisfactionUpsertService 반환 — Depends(get_satisfaction_upsert_service) 사용.
+
+    Qdrant 미연결 시 비활성화 모드 인스턴스를 반환.
+    try_upsert_batch() 호출 시 조용히 건너뜀.
+    의존: _satisfaction_upsert_svc (싱글턴)
+    """
+    return _satisfaction_upsert_svc
+
+
+def get_cf_recommend_service() -> CFRecommendService:
+    """[Group A] CFRecommendService 반환 — Depends(get_cf_recommend_service) 사용.
+
+    Qdrant 미연결 시 비활성화 모드 인스턴스를 반환 (is_available() == False).
+    의존: _cf_recommend_svc (싱글턴)
+    """
+    return _cf_recommend_svc
 
 
 

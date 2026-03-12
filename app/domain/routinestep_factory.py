@@ -109,8 +109,8 @@ def create_routinestep_from_exercise(
     BaseExercise → RoutineStep 변환
 
     운동 유형에 따라 limitTime 자동 계산 (limit_time=None 시):
-    - DURATION: pose.referencePose.totalDuration * 2 + 40 (초)
-    - REPS:     pose.referencePose.totalDuration * targetReps + 40 (초)
+    - DURATION: pose.referencePose.totalDuration * 2 + 30 (초)
+    - REPS:     pose.referencePose.totalDuration * targetReps + 30 (초)
     - EYES:     pose.totalDurationMs 기반 계산 (기본 70초)
 
     Args:
@@ -141,7 +141,7 @@ def create_routinestep_from_exercise(
     elif ex_type == ExerciseType.DURATION:
         if limit_time is None:
             ref_duration = _get_reference_total_duration(exercise)
-            limit_time = ref_duration * 2 + 40
+            limit_time = ref_duration * 2 + 30
         return RoutineStep(
             exerciseId=exercise.exerciseId,
             type=ex_type,
@@ -160,7 +160,7 @@ def create_routinestep_from_exercise(
         )
         if limit_time is None:
             ref_duration = _get_reference_total_duration(exercise)
-            limit_time = ref_duration * resolved_reps + 40
+            limit_time = ref_duration * resolved_reps + 30
         return RoutineStep(
             exerciseId=exercise.exerciseId,
             type=ex_type,

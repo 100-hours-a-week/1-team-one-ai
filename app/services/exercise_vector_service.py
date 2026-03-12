@@ -34,16 +34,27 @@ logger = logging.getLogger(__name__)
 
 # ── passage 생성 ──────────────────────────────────────────────────────────────
 
+# bodyPart 영어 값 → 한국어 변환 (쿼리와 동일 언어로 맞춰 cross-lingual 매핑 오류 방지)
+_BODY_PART_KO: dict[str, str] = {
+    "neck": "목",
+    "shoulder": "어깨",
+    "lowerBack": "허리",
+    "eyes": "눈",
+    "wrist": "손목",
+}
+
 
 def _build_passage(ex: dict) -> str:
     """
     운동 dict → 임베딩용 자연어 passage.
 
     설문 query와 동일한 의미 공간에 사영되도록 동일한 prefix(passage:)를 사용합니다.
+    bodyPart는 한국어로 변환해 쿼리("목 부위")와 언어를 통일합니다.
     """
+    body_part_ko = _BODY_PART_KO.get(ex["bodyPart"], ex["bodyPart"])
     return (
         f"passage: 운동명: {ex['name']} | "
-        f"부위: {ex['bodyPart']} | "
+        f"부위: {body_part_ko} | "
         f"효과: {ex['effect']} | "
         f"태그: {ex['tags']}"
     )
@@ -108,16 +119,26 @@ class ExerciseVectorService:
             return UpsertResult(upserted=0, error_type=UpsertErrorType.AUTH, error_message=str(e))
         except QdrantServerError as e:
             logger.error("Qdrant 서버 5xx 오류 (status=%d): %s", e.status_code, e, exc_info=True)
-            return UpsertResult(upserted=0, error_type=UpsertErrorType.SERVER, error_message=f"status={e.status_code}")
+            return UpsertResult(
+                upserted=0,
+                error_type=UpsertErrorType.SERVER,
+                error_message=f"status={e.status_code}",
+            )
         except QdrantCollectionError as e:
             logger.warning("Qdrant 컬렉션 없음 — 컬렉션 생성 전 upsert 시도: %s", e)
-            return UpsertResult(upserted=0, error_type=UpsertErrorType.COLLECTION, error_message=str(e))
+            return UpsertResult(
+                upserted=0, error_type=UpsertErrorType.COLLECTION, error_message=str(e)
+            )
         except QdrantConnectionError as e:
             logger.warning("Qdrant 연결 실패 — 서버 상태 확인 필요: %s", e)
-            return UpsertResult(upserted=0, error_type=UpsertErrorType.CONNECTION, error_message=str(e))
+            return UpsertResult(
+                upserted=0, error_type=UpsertErrorType.CONNECTION, error_message=str(e)
+            )
         except QdrantError as e:
             logger.error("Qdrant 알 수 없는 오류: %s", e, exc_info=True)
-            return UpsertResult(upserted=0, error_type=UpsertErrorType.UNKNOWN, error_message=str(e))
+            return UpsertResult(
+                upserted=0, error_type=UpsertErrorType.UNKNOWN, error_message=str(e)
+            )
 
     # ── private ───────────────────────────────────────────────────────────────
 

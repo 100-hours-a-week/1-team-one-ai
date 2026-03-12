@@ -25,7 +25,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 # 임베딩 모델 사전 다운로드 (빌드 시 캐싱 → 런타임 HuggingFace 다운로드 불필요)
 # 모델명은 config.py의 QDRANT_EMBEDDING_MODEL 기본값과 일치해야 함
-ARG EMBEDDING_MODEL=intfloat/multilingual-e5-small
+ARG EMBEDDING_MODEL=intfloat/multilingual-e5-base
 ENV HF_HOME=/app/.cache/huggingface
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('${EMBEDDING_MODEL}')"
 

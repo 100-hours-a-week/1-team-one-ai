@@ -74,9 +74,7 @@ def _filter_survey_by_exercises(
         relevant_keywords.update(_BODY_PART_KEYWORDS.get(bp, []))
 
     filtered = [
-        a
-        for a in survey.survey
-        if any(kw in a.questionContent for kw in relevant_keywords)
+        a for a in survey.survey if any(kw in a.questionContent for kw in relevant_keywords)
     ]
     return filtered or survey.survey
 

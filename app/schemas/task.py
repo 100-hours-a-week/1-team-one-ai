@@ -63,7 +63,7 @@ class ProgressStep(str, Enum):
     # v1~
     LLM_INFERENCE = "AI가 최적의 루틴 구성 중"  # 60% — LLM 경로 전용
     RESULT_VALIDATION = "최종 추천 결과 검증 중"  # 75%
-    REASON_GENERATION = "AI가 추천 이유를 생성 중"  # 85% — Vector 경로 전용
+    REASON_GENERATION = "AI가 추천 이유를 작성 중"  # 85% — Vector 경로 전용
     COMPLETED = "운동 플랜 추천 완료!"  # 100%
 
     FAILED = "추천 실패"  # 0%

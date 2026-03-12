@@ -17,6 +17,7 @@ from typing import Protocol, runtime_checkable
 
 from qdrant_client import QdrantClient, models
 
+from app.data.qdrant_client import query_points as qdrant_query_points
 from app.data.qdrant_exceptions import translate_qdrant_error
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ class ExerciseVectorRepository(Protocol):
         query_vector: list[float],
         limit: int = 20,
         score_threshold: float = 0.5,
+        query_filter: models.Filter | None = None,
     ) -> list[models.ScoredPoint]:
         """
         쿼리 벡터와 유사한 운동을 검색합니다.
@@ -101,6 +103,7 @@ class QdrantExerciseVectorRepository(ExerciseVectorRepository):
         query_vector: list[float],
         limit: int = 20,
         score_threshold: float = 0.5,
+        query_filter: models.Filter | None = None,
     ) -> list[models.ScoredPoint]:
         """
         쿼리 벡터와 유사한 운동을 검색합니다.
@@ -109,11 +112,12 @@ class QdrantExerciseVectorRepository(ExerciseVectorRepository):
         - 유사도 순으로 정렬된 ScoredPoint 목록
         """
         try:
-            response = self._client.query_points(
+            response = qdrant_query_points(
                 collection_name=COLLECTION_NAME,
                 query=query_vector,
                 limit=limit,
                 score_threshold=score_threshold,
+                query_filter=query_filter,
                 with_payload=True,
             )
             return response.points
@@ -134,11 +138,16 @@ class QdrantExerciseVectorRepository(ExerciseVectorRepository):
                 collection_name=COLLECTION_NAME,
                 vectors_config=models.VectorParams(
                     size=vector_size,
-                    distance=models.Distance.COSINE,  # TODO
+                    distance=models.Distance.COSINE,
                 ),
             )
+            self._client.create_payload_index(
+                collection_name=COLLECTION_NAME,
+                field_name="bodyPart",
+                field_schema=models.PayloadSchemaType.KEYWORD,
+            )
             logger.info(
-                "Qdrant 컬렉션 생성: %s (dim=%d, distance=Cosine)",  # TODO
+                "Qdrant 컬렉션 생성: %s (dim=%d, distance=Cosine)",
                 COLLECTION_NAME,
                 vector_size,
             )

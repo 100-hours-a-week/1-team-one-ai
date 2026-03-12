@@ -48,9 +48,9 @@ from app.services.recommend.cold_start_checker import (
 )
 from app.services.recommend.recommend_service import RecommendService
 from app.services.recommend.vector_recommend_service import VectorRecommendService
-from app.services.satisfaction_service import SatisfactionUpsertService
 from app.services.response.v1 import V1ResponseBuilder
 from app.services.response.v2 import V2ResponseBuilder
+from app.services.satisfaction_service import SatisfactionUpsertService
 from app.services.task.executor import BackgroundTaskExecutor, TaskExecutor
 from app.services.task.service import TaskService
 from app.services.task.store import InMemoryTaskStore, TaskStore
@@ -571,6 +571,3 @@ def get_cf_recommend_service() -> CFRecommendService:
     의존: _cf_recommend_svc (싱글턴)
     """
     return _cf_recommend_svc
-
-
-

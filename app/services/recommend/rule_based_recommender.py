@@ -237,7 +237,7 @@ class RuleBasedRecommender:
         """
         시간 보충용 스텝 생성 (양측 운동 규칙 준수)
 
-        ResponseBuilder에서 루틴 시간이 최소 기준 미달일 때 호출.
+        루틴 시간이 최소 기준 미달일 때 호출.
         exclude_ids에 포함된 운동은 제외하고 target_time을 채울 수 있는 스텝 반환.
 
         양측 운동 규칙:
@@ -252,7 +252,6 @@ class RuleBasedRecommender:
         Returns:
         - list[RoutineStep]: 보충용 스텝 목록 (stepOrder는 1부터 시작, 호출측에서 재정렬 필요)
         """
-        default_limit_time = 60  # RoutineStep 기본 limitTime
         exclude_ids = set(exclude_ids) if exclude_ids else set()
         steps: list[RoutineStep] = []
         current_time = 0
@@ -286,12 +285,13 @@ class RuleBasedRecommender:
                     # 짝이 이미 사용 중이면 스킵
                     continue
 
-                pair_time = default_limit_time * 2  # 양측 운동 2개 시간
+                # 실제 step limitTime 기준으로 pair 추가 가능 여부 판단
+                step1 = self._create_step(exercise, step_order)
+                step2 = self._create_step(pair_exercise, step_order + 1)
+                pair_time = step1.limitTime + step2.limitTime
 
                 if remaining_time >= pair_time:
                     # 2개분 시간 충분: bilateral 쌍 추가
-                    step1 = self._create_step(exercise, step_order)
-                    step2 = self._create_step(pair_exercise, step_order + 1)
                     steps.extend([step1, step2])
                     exclude_ids.add(exercise.exerciseId)
                     exclude_ids.add(pair_exercise.exerciseId)

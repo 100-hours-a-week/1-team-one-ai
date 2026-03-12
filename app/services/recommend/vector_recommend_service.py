@@ -13,10 +13,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from qdrant_client import models as qdrant_models
+
+from app.core.config import RoutineTimePolicy
 from app.core.exceptions import ConfigurationError
 from app.domain.exercise import BodyPart, ExerciseType
 from app.domain.routine import Routine, RoutineList
-from app.domain.routinestep_factory import create_routinestep_from_exercise
+from app.domain.routinestep_factory import copy_routine_step, create_routinestep_from_exercise
 from app.schemas.common import UserSurvey
 
 if TYPE_CHECKING:
@@ -38,7 +41,7 @@ DEFAULT_SEARCH_LIMIT = (
     30  # Qdrant 검색 후보 수 (UP: 다양성 & 지연 증가, DOWN: 다양성 감소 · 속도 증가)
 )
 DEFAULT_SCORE_THRESHOLD = (
-    0.4  # 벡터 유사도 하한 (UP: 정밀도 증가 · recall 감소, DOWN: recall 증가 · 노이즈 증가)
+    0.85  # 벡터 유사도 하한 (UP: 정밀도 증가 · recall 감소, DOWN: recall 증가 · 노이즈 증가)
 )
 
 # Non-cold start 벡터 블렌딩 가중치 — 합이 반드시 1.0 (cosine 스케일 왜곡 방지)
@@ -56,6 +59,16 @@ _KEYWORD_TO_CONCERN: list[tuple[str, str]] = [
     ("앉아서", "장시간 좌식 생활로 인한 피로"),
     ("피로", "전반적인 신체 피로"),
 ]
+
+# questionContent 키워드 → BodyPart 매핑 (_KEYWORD_TO_CONCERN 동일 키 기준)
+# "앉아서", "피로"는 특정 bodyPart 없음 — 포함하지 않음
+_KEYWORD_TO_BODY_PART: dict[str, BodyPart] = {
+    "목 부위": BodyPart.NECK,
+    "어깨": BodyPart.SHOULDER,
+    "허리": BodyPart.LOWER_BACK,
+    "손목": BodyPart.WRIST,
+    "눈": BodyPart.EYES,
+}
 
 _BODY_PART_TO_KOREAN: dict[BodyPart, str] = {
     BodyPart.NECK: "목",
@@ -144,10 +157,12 @@ class VectorRecommendService:
         survey_vector: list[float] = self._model.encode(query).tolist()
         query_vector = self._get_query_vector(survey_vector, user_id)
 
+        qdrant_filter = self._build_qdrant_filter(survey)
         hits = self._repo.search(
             query_vector=query_vector,
             limit=DEFAULT_SEARCH_LIMIT,
             score_threshold=DEFAULT_SCORE_THRESHOLD,
+            query_filter=qdrant_filter,
         )
         logger.info(
             "벡터 검색 완료 [user_id=%d]: %d 개 운동 후보",
@@ -221,6 +236,34 @@ class VectorRecommendService:
         )
         return blended
 
+    def _build_qdrant_filter(self, survey: UserSurvey) -> qdrant_models.Filter | None:
+        """
+        SEVERITY_THRESHOLD 미만 bodyPart를 Qdrant 검색에서 제외하는 must_not 필터.
+
+        예) 허리(1점), 손목(1점) → lowerBack, wrist 운동 제외
+        bodyPart와 무관한 문항("앉아서", "피로")은 필터에서 무시.
+        """
+        excluded: list[str] = []
+        for answer in survey.survey:
+            if answer.selectedOptionSortOrder >= SEVERITY_THRESHOLD:
+                continue
+            for keyword, body_part in _KEYWORD_TO_BODY_PART.items():
+                if keyword in answer.questionContent:
+                    excluded.append(body_part.value)
+
+        if not excluded:
+            return None
+
+        logger.debug("Qdrant bodyPart 제외 필터: %s", excluded)
+        return qdrant_models.Filter(
+            must_not=[
+                qdrant_models.FieldCondition(
+                    key="bodyPart",
+                    match=qdrant_models.MatchAny(any=excluded),
+                )
+            ]
+        )
+
     def _build_query(self, survey: UserSurvey) -> str:
         """
         설문 응답 → 임베딩용 쿼리 문자열 변환.
@@ -242,9 +285,7 @@ class VectorRecommendService:
             # 모든 문항이 낮은 점수인 경우 — 일반적인 스트레칭 추천
             concerns = ["업무로 인한 근골격계 피로"]
 
-        return (
-            f"query: 건강 상태: {', '.join(concerns)} | 목표: 장시간 업무로 인한 근골격계 피로 회복"
-        )
+        return f"query: {', '.join(concerns)}"
 
     def _extract_concern(self, question_content: str) -> str:
         """questionContent에서 키워드 매칭으로 건강 상태 문구 추출."""
@@ -346,6 +387,11 @@ class VectorRecommendService:
         if not valid_hits:
             logger.warning("벡터 검색 결과에 유효한 운동이 없습니다. 빈 RoutineList 반환")
             return RoutineList(routines=[])
+        logger.debug(
+            "유효한 벡터 검색 결과 - %d개:\n%s",
+            len(valid_hits),
+            [(h.id, h.score) for h in valid_hits],
+        )
 
         # EYES / body 분리
         eyes_hits = [h for h in valid_hits if exercises_by_id[int(h.id)].type == ExerciseType.EYES]
@@ -364,23 +410,92 @@ class VectorRecommendService:
         routines: list[Routine] = []
 
         # ── body 루틴 생성 ─────────────────────────────────────────────────────
-        if body_hits and body_count > 0:
-            # bilateral pair를 같은 루틴에 배정하기 위해 그룹 단위로 분배
+
+        if body_count > 0:
+            from app.services.recommend.rule_based_recommender import RuleBasedRecommender
+
+            # bilateral pair 운동 같은 그룹으로 묶기 (non-bilateral exercise는 1 그룹당 1운동)
             body_hit_groups = self._group_bilateral_pairs(body_hits, exercises_by_id)
-            groups_per_routine = max(1, len(body_hit_groups) // body_count)
+
+            # MIN_TIME 미달 시 rule-based filler (한 번만 생성)
+            filler = RuleBasedRecommender(exercise_repository.raw_data)
+
+            # 루틴 간 중복 감지를 위한 운동 ID 집합 누적
+            seen_routine_id_sets: list[frozenset[int]] = []
 
             for i in range(body_count):
-                chunk_groups = body_hit_groups[
-                    i * groups_per_routine : (i + 1) * groups_per_routine
-                ]
-                chunk = [h for group in chunk_groups for h in group]
-                if not chunk:
-                    break
+                steps: list[RoutineStep] = []
+                used_ids: set[int] = set()
+                total_time = 0
+                step_order = 1
 
-                steps = [
-                    create_routinestep_from_exercise(exercises_by_id[int(h.id)], step_order=j + 1)
-                    for j, h in enumerate(chunk)
-                ]
+                # Phase 1: round-robin으로 hit groups 순회 (TARGET_TIME까지)
+                # i번째 그룹부터 시작해 루틴마다 시작점을 달리함
+                rotated_groups = body_hit_groups[i:] + body_hit_groups[:i]
+                for group in rotated_groups:
+                    if total_time >= RoutineTimePolicy.TARGET_TIME:
+                        break
+                    for hit in group:
+                        ex_id = int(hit.id)
+                        if ex_id in used_ids:
+                            continue
+                        ex = exercises_by_id[ex_id]
+                        step = create_routinestep_from_exercise(ex, step_order)
+                        steps.append(step)
+                        used_ids.add(ex_id)
+                        total_time += step.limitTime
+                        step_order += 1
+
+                # Phase 2: 동일 루틴 감지 — hit 교체로 차별화 시도, 불가 시 filler로 위임
+                while frozenset(used_ids) in seen_routine_id_sets and steps:
+                    # 마지막 운동 제거
+                    removed = steps.pop()
+                    used_ids.discard(removed.exerciseId)
+                    total_time -= removed.limitTime
+                    step_order -= 1
+                    logger.debug(
+                        "중복 루틴 감지 — 마지막 운동 제거 [routine_idx=%d, removed_id=%d]",
+                        i,
+                        removed.exerciseId,
+                    )
+
+                    # 미사용 hits에서 추가 시 중복이 해소되는 대체 운동 탐색
+                    replacement_found = False
+                    for group in body_hit_groups:
+                        for hit in group:
+                            ex_id = int(hit.id)
+                            if ex_id in used_ids:
+                                continue
+                            # 이 운동 추가 시 중복 여부 사전 확인
+                            if frozenset(used_ids | {ex_id}) not in seen_routine_id_sets:
+                                ex = exercises_by_id[ex_id]
+                                step = create_routinestep_from_exercise(ex, step_order)
+                                steps.append(step)
+                                used_ids.add(ex_id)
+                                total_time += step.limitTime
+                                replacement_found = True
+                                break
+                        if replacement_found:
+                            break
+
+                    if not replacement_found:
+                        # 모든 hit 소진 — Phase 3 filler가 다른 운동으로 채워 루틴을 고유하게 만듦
+                        logger.debug(
+                            "hit 교체로 중복 해소 불가 — filler로 위임 [routine_idx=%d]", i
+                        )
+                        break
+
+                # Phase 3: MIN_TIME 미달 시 rule-based filler로 보완
+                if total_time < RoutineTimePolicy.MIN_TIME:
+                    needed = RoutineTimePolicy.MIN_TIME - total_time
+                    filler_steps = filler.get_filler_steps(
+                        target_time=needed,
+                        exclude_ids=used_ids,
+                    )
+                    for j, fs in enumerate(filler_steps, start=step_order):
+                        steps.append(copy_routine_step(fs, step_order=j))
+
+                seen_routine_id_sets.append(frozenset(s.exerciseId for s in steps))
                 routines.append(
                     Routine(
                         routineOrder=len(routines) + 1,
@@ -390,6 +505,7 @@ class VectorRecommendService:
                 )
 
         # ── EYES 루틴 생성 ─────────────────────────────────────────────────────
+
         if has_eyes_routine:
             eyes_steps = [
                 create_routinestep_from_exercise(exercises_by_id[int(h.id)], step_order=j + 1)
@@ -412,10 +528,10 @@ class VectorRecommendService:
 
     def generate_reasons(self, routines: list[Routine], survey: UserSurvey) -> list[Routine]:
         """
-        검증 & 보정 완료된 루틴에 LLM reason을 적용합니다.
+        검증 & 보정 완료된 루틴에 LLM reason을 적용한다.
 
-        EYES 전용 루틴은 LLM 호출 없이 fallback reason을 사용합니다.
-        LLM 미설정 또는 호출 실패 시 기존 fallback reason을 유지합니다.
+        - EYES 전용 루틴은 LLM 호출 없이 fallback reason을 사용
+        - LLM 미설정 또는 호출 실패 시 기존 fallback reason을 유지
         """
         from app.data.loader import exercise_repository
 
@@ -423,13 +539,10 @@ class VectorRecommendService:
 
         result: list[Routine] = []
         for routine in routines:
-            is_eyes = all(
-                exercises_by_id.get(s.exerciseId, None) is not None
-                and exercises_by_id[s.exerciseId].type == ExerciseType.EYES
-                for s in routine.steps
-            )
+            # RoutineStep.type으로 직접 판별 — exercises_by_id 조회 실패 시 LLM 호출되는 버그 방지
+            is_eyes = all(s.type == ExerciseType.EYES for s in routine.steps)
             if is_eyes:
-                reason = _build_fallback_reason(routine.steps, exercises_by_id)
+                reason = "눈 피로 해소를 위한 눈 운동 루틴입니다."
             else:
                 reason = self._generate_reason(routine.steps, survey, exercises_by_id)
             result.append(
@@ -448,9 +561,14 @@ class VectorRecommendService:
         exercises_by_id: dict[int, BaseExercise],
     ) -> str:
         """
-        루틴 구성 운동과 설문 응답을 바탕으로 LLM이 reason을 생성합니다.
+        LLM을 사용하여 루틴 구성 운동과 설문 응답을 바탕으로 reason을 생성한다.
+        - steps: 루틴을 구성하는 운동 단계 목록
+        - survey: 사용자 설문 응답
+        - exercises_by_id: exerciseId → BaseExercise 매핑 (LLM 호출 전 조회하여 전달)
 
-        LLM 미설정 또는 호출 실패 시 기본 문구를 반환합니다.
+        - LLM 미설정 또는 호출 실패 시 기본 문구를 반환
+        - build_reason_prompt을 사용하여 사용자 프롬프트 생성
+        - REASON_SYSTEM_PROMPT을 사용하여 시스템 프롬프트 생성
         """
         if self._llm is None:
             return _build_fallback_reason(steps, exercises_by_id)

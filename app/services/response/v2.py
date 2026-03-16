@@ -70,7 +70,7 @@ class V2ResponseBuilder(CoreResponseBuilder):
         self, validated_routines: list[Routine], task_id: str, user_id: int
     ) -> TaskResult:
         """검증 완료된 루틴으로 V2 TaskResult 객체 생성"""
-        total_exercises = sum(len(r.steps) for r in validated_routines)
+        total_exercises = len({step.exerciseId for r in validated_routines for step in r.steps})
 
         return TaskResult(
             taskId=task_id,

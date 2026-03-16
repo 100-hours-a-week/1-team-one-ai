@@ -84,25 +84,39 @@ def _get_eyes_limit_time(exercise: BaseExercise, default: int = 70) -> int:
     return default
 
 
+def _get_reference_total_duration(exercise: BaseExercise, default: int = 10) -> int:
+    """
+    DURATION/REPS 운동의 pose.referencePose.totalDuration 추출 (초 단위, 정수 반환).
+    pose 데이터가 없거나 파싱 실패 시 기본값(10초) 사용.
+    """
+    if isinstance(exercise.pose, dict):
+        ref = exercise.pose.get("referencePose")
+        if isinstance(ref, dict):
+            duration = ref.get("totalDuration")
+            if isinstance(duration, (int, float)) and duration > 0:
+                return int(duration)
+    return default
+
+
 def create_routinestep_from_exercise(
     exercise: BaseExercise,
     step_order: int,
-    limit_time: int = 60,
+    limit_time: Optional[int] = None,
     duration_time: Optional[int] = None,
     target_reps: Optional[int] = None,
 ) -> RoutineStep:
     """
     BaseExercise → RoutineStep 변환
 
-    운동 유형에 따라 기본값 적용:
-    - DURATION: durationTime=DEFAULT_DURATION_TIME, targetReps=None
-    - REPS: durationTime=None, targetReps=10
-    - EYES: limitTime은 pose.totalDurationMs에서 계산 (기본 70초), durationTime/targetReps=None
+    운동 유형에 따라 limitTime 자동 계산 (limit_time=None 시):
+    - DURATION: pose.referencePose.totalDuration * 2 + 30 (초)
+    - REPS:     pose.referencePose.totalDuration * targetReps + 30 (초)
+    - EYES:     pose.totalDurationMs 기반 계산 (기본 70초)
 
     Args:
     - exercise: 변환할 운동 데이터
     - step_order: 루틴 내 순서
-    - limit_time: 제한 시간 (초), 기본값 60
+    - limit_time: 제한 시간 (초). None이면 pose 데이터로 자동 계산
     - duration_time: 지속 시간 (DURATION 타입 시 사용), None이면 기본값 적용
     - target_reps: 목표 반복 횟수 (REPS 타입 시 사용), None이면 기본값 적용
 
@@ -125,6 +139,9 @@ def create_routinestep_from_exercise(
         )
 
     elif ex_type == ExerciseType.DURATION:
+        if limit_time is None:
+            ref_duration = _get_reference_total_duration(exercise)
+            limit_time = ref_duration * 2 + 30
         return RoutineStep(
             exerciseId=exercise.exerciseId,
             type=ex_type,
@@ -138,15 +155,19 @@ def create_routinestep_from_exercise(
         )
 
     else:  # REPS
+        resolved_reps = (
+            target_reps if target_reps is not None else RoutineTimePolicy.DEFAULT_TARGET_REPS
+        )
+        if limit_time is None:
+            ref_duration = _get_reference_total_duration(exercise)
+            limit_time = ref_duration * resolved_reps + 30
         return RoutineStep(
             exerciseId=exercise.exerciseId,
             type=ex_type,
             stepOrder=step_order,
             limitTime=limit_time,
             durationTime=None,
-            targetReps=target_reps
-            if target_reps is not None
-            else RoutineTimePolicy.DEFAULT_TARGET_REPS,
+            targetReps=resolved_reps,
             side=side,
         )
 

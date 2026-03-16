@@ -68,7 +68,7 @@ class V1ResponseBuilder(CoreResponseBuilder):
         self, validated_routines: list[Routine], task_id: str
     ) -> RecommendationResponseV1:
         """검증 완료된 루틴으로 V1 응답 객체 생성"""
-        total_exercises = sum(len(r.steps) for r in validated_routines)
+        total_exercises = len({step.exerciseId for r in validated_routines for step in r.steps})
 
         return RecommendationResponseV1(
             taskId=task_id,

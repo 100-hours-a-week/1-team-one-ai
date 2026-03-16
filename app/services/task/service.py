@@ -380,7 +380,7 @@ class TaskService:
                 result=result,
                 completed_at=result.completedAt,
             )
-            logger.info("CF 혼합 추천 완료 [task_id=%s, user_id=%d]", task_id, user_id)
+            logger.info("V3 추천 완료 [task_id=%s, user_id=%d]", task_id, user_id)
 
             # Step 6: 콜백 전송 (성공)
             self._send_callback(result)

@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 # ── 상수 ──────────────────────────────────────────────────────────────────────
 
 CF_SIMILAR_USERS_LIMIT = 20  # 유사 사용자 검색 상한
-CF_WEIGHT = 0.5  # CF 점수 가중치   (UP: CF 반영 비율 증가, DOWN: 벡터 반영 비율 증가)
+CF_WEIGHT = 0.3  # CF 점수 가중치   (UP: CF 반영 비율 증가, DOWN: 벡터 반영 비율 증가)
 VECTOR_WEIGHT = 0.5  # 벡터 점수 가중치 (= 1 - CF_WEIGHT)
 
 
@@ -122,27 +122,25 @@ class CFRecommendService(VectorRecommendService):
         query_vector = self._get_query_vector(survey_vector, user_id)
 
         # 2. 운동 벡터 검색
+        qdrant_filter = self._build_qdrant_filter(survey)
         hits = self._repo.search(
             query_vector=query_vector,
             limit=DEFAULT_SEARCH_LIMIT,
             score_threshold=DEFAULT_SCORE_THRESHOLD,
+            query_filter=qdrant_filter,
         )
         logger.info("벡터 검색 완료 [user_id=%d]: %d 개 후보", user_id, len(hits))
 
         # 3. 사용자 만족도 조회
         user_satisfactions = self._get_user_satisfaction(user_id)
         if not user_satisfactions:
-            logger.info(
-                "만족도 데이터 없음 — 벡터 검색으로 fallback [user_id=%d]", user_id
-            )
+            logger.info("만족도 데이터 없음 — 유사도 검색 결과로 완료 [user_id=%d]", user_id)
             return self._build_routine_list(hits, survey.routineCount, survey)
 
         # 4. 유사 사용자 기반 CF 점수 집계
         cf_scores = self._compute_cf_scores(user_satisfactions, user_id)
         if not cf_scores:
-            logger.info(
-                "유사 사용자 없음 — 벡터 검색으로 fallback [user_id=%d]", user_id
-            )
+            logger.info("유사 사용자 없음 — 유사도 검색 결과로 완료 [user_id=%d]", user_id)
             return self._build_routine_list(hits, survey.routineCount, survey)
 
         # 5. 벡터 점수 + CF 점수 블렌딩 → 최종 순위

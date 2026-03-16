@@ -128,6 +128,10 @@ class CoreResponseBuilder:
             validated.append(fixed_routine)
 
         logger.info("루틴 검증 완료: %d개 루틴", len(validated))
+        logger.debug(
+            "최종 루틴 결과: 운동 분포=%s",
+            [[step.exerciseId for step in r.steps] for r in validated],
+        )
         return validated
 
     def _validate_single_routine(self, routine: Routine, routine_order: int) -> Routine:

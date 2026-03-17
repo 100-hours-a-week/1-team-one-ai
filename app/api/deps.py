@@ -326,7 +326,7 @@ def _create_embedding_model():
     실패 시 None 반환 → 각 서비스가 비활성화 모드로 동작.
 
     환경변수:
-      QDRANT_EMBEDDING_MODEL : 임베딩 모델명 (기본 intfloat/multilingual-e5-small)
+      QDRANT_EMBEDDING_MODEL : 임베딩 모델명 (기본 intfloat/multilingual-e5-base)
     TODO: 임베딩 모델 다양화 — SentenceTransformer 외 클라우드 API 지원
     """
     try:

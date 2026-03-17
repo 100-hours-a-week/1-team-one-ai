@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     # Qdrant
     QDRANT_URL: str = "http://localhost:6333"
     QDRANT_API_KEY: str | None = None  # 로컬 불필요, 클라우드 필수
-    QDRANT_EMBEDDING_MODEL: str = "intfloat/multilingual-e5-small"
+    QDRANT_EMBEDDING_MODEL: str = "intfloat/multilingual-e5-base"
 
 
 settings = Settings()

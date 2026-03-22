@@ -26,6 +26,7 @@ from app.services.recommend.recommend_service import RecommendService
 from app.services.recommend.vector_recommend_service import VectorRecommendService
 from app.services.response.v2 import V2ResponseBuilder
 from app.services.task.store import TaskStore
+from app.utils.time import task_elapsed_sec
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +185,16 @@ class TaskService:
                 result=result,
                 completed_at=result.completedAt,
             )
-            logger.info("추천 완료 [task_id=%s, user_id=%d]", task_id, user_id)
+            if result.completedAt:
+                elapsed = task_elapsed_sec(task.created_at, result.completedAt)
+                logger.info(
+                    "추천 완료 [task_id=%s, user_id=%d, elapsed=%.2fs, path=llm]",
+                    task_id,
+                    user_id,
+                    elapsed,
+                )
+            else:
+                logger.info("추천 완료 [task_id=%s, user_id=%d]", task_id, user_id)
 
             # Step 4: 콜백 전송 (성공)
             self._send_callback(result)
@@ -263,7 +273,10 @@ class TaskService:
                 reasoned_routines = self._vector_recommend_service.generate_reasons(
                     result.routines, survey
                 )
-                result = result.model_copy(update={"routines": reasoned_routines})
+                # reason 생성 완료 후 completedAt 재설정 (LLM 호출 시간 반영)
+                result = result.model_copy(
+                    update={"routines": reasoned_routines, "completedAt": datetime.now(UTC)}
+                )
 
             # Step 5: 완료 처리
             self._store.update(
@@ -274,7 +287,16 @@ class TaskService:
                 result=result,
                 completed_at=result.completedAt,
             )
-            logger.info("벡터 검색 추천 완료 [task_id=%s, user_id=%d]", task_id, user_id)
+            if result.completedAt:
+                elapsed = task_elapsed_sec(task.created_at, result.completedAt)
+                logger.info(
+                    "벡터 검색 추천 완료 [task_id=%s, user_id=%d, elapsed=%.2fs, path=vector]",
+                    task_id,
+                    user_id,
+                    elapsed,
+                )
+            else:
+                logger.info("벡터 검색 추천 완료 [task_id=%s, user_id=%d]", task_id, user_id)
 
             # Step 6: 콜백 전송 (성공)
             self._send_callback(result)
@@ -369,7 +391,10 @@ class TaskService:
                 reasoned_routines = self._cf_recommend_service.generate_reasons(
                     result.routines, survey
                 )
-                result = result.model_copy(update={"routines": reasoned_routines})
+                # reason 생성 완료 후 completedAt 재설정 (LLM 호출 시간 반영)
+                result = result.model_copy(
+                    update={"routines": reasoned_routines, "completedAt": datetime.now(UTC)}
+                )
 
             # Step 5: 완료 처리
             self._store.update(
@@ -380,7 +405,16 @@ class TaskService:
                 result=result,
                 completed_at=result.completedAt,
             )
-            logger.info("V3 추천 완료 [task_id=%s, user_id=%d]", task_id, user_id)
+            if result.completedAt:
+                elapsed = task_elapsed_sec(task.created_at, result.completedAt)
+                logger.info(
+                    "V3 추천 완료 [task_id=%s, user_id=%d, elapsed=%.2fs, path=cf]",
+                    task_id,
+                    user_id,
+                    elapsed,
+                )
+            else:
+                logger.info("V3 추천 완료 [task_id=%s, user_id=%d]", task_id, user_id)
 
             # Step 6: 콜백 전송 (성공)
             self._send_callback(result)
